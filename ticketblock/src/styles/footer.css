@@ -1,0 +1,86 @@
+/* src/styles/footer.css */
+
+/* Estilos del footer */
+.footer {
+  background-color: #000; /* Fondo negro */
+  color: #fff; /* Texto blanco */
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+  position: relative;
+}
+
+.footer-container {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  width: 100%; /* Asegura que el contenedor ocupe todo el ancho del footer */
+  box-sizing: border-box; /* Incluye padding en el ancho */
+  max-width: 1200px; /* Limita el ancho máximo del footer */
+  margin: 0 auto; /* Centra el contenedor */
+}
+
+.footer-section {
+  flex: 1;
+  min-width: 200px;
+  margin: 10px;
+  text-align: center; /* Centra el contenido de cada sección */
+}
+
+.footer-section h4 {
+  margin-top: 0;
+}
+
+.footer-section a {
+  color: #fff; /* Texto blanco */
+  text-decoration: none;
+  display: block;
+  margin: 5px 0;
+}
+
+.footer-section a:hover {
+  text-decoration: underline;
+}
+
+.footer-bottom {
+  text-align: center;
+  padding: 10px 0;
+  border-top: 1px solid #333; /* Un poco más claro para contraste */
+  margin-top: 20px;
+  width: 100%; /* Asegura que el contenedor ocupe todo el ancho del footer */
+  box-sizing: border-box; /* Incluye padding en el ancho */
+}
+
+.footer-bottom a {
+  color: #fff; /* Texto blanco */
+  text-decoration: none;
+  margin: 0 10px;
+}
+
+.footer-bottom a:hover {
+  text-decoration: underline;
+}
+
+.footer input[type="email"] {
+  padding: 5px;
+  border: none;
+  border-radius: 3px;
+  margin-right: 10px;
+}
+
+.footer button {
+  padding: 5px 10px;
+  background-color: #333; /* Fondo un poco más claro */
+  color: #fff; /* Texto blanco */
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.footer button:hover {
+  background-color: #555; /* Fondo un poco más claro en hover */
+}

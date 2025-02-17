@@ -1,0 +1,82 @@
+/* src/styles/homepage.css */
+
+.homepage {
+    padding: 20px;
+  }
+  
+  .hero {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  
+  .homepage-title {
+    font-size: 2.5em;
+    margin-bottom: 20px;
+  }
+  
+  .homepage-description {
+    font-size: 1.2em;
+    margin-bottom: 20px;
+  }
+  
+  .button {
+    background-color: #007bff;
+    color: #ffffff;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 4px;
+    display: inline-block;
+    text-align: center;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .button:hover {
+    background-color: #0056b3;
+  }
+  
+  .button.sold-out {
+    background-color: #ccc;
+    color: #666;
+    cursor: pointer;
+  }
+  
+  .events {
+    margin-top: 40px;
+  }
+  
+  .section-title {
+    font-size: 2em;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  
+  .event-card-wrapper {
+    padding: 10px;
+  }
+  
+  .event-card {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    text-align: center;
+  }
+  
+  .event-image {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+  
+  .event-info h3 {
+    margin: 0 0 10px;
+    font-size: 1.5em;
+  }
+  
+  .event-info p {
+    margin: 0 0 20px;
+    font-size: 1em;
+  }
+  

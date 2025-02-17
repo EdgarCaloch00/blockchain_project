@@ -1,0 +1,13 @@
+/* src/styles/registerEventPage.css */
+
+.register-event-page {
+    padding: 20px;
+    background-color: #f8f8f8;
+    min-height: calc(100vh - 160px); /* Ajuste de altura para asegurar que el footer esté al fondo */
+  }
+  
+  .register-event-page h1 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  

@@ -1,0 +1,168 @@
+/* src/styles/main.css */
+
+/* Estilos generales */
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    height: 100%; /* Asegurar que la página ocupe toda la altura */
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333333;
+}
+
+.nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nav-link {
+    color: #007bff;
+    text-decoration: none;
+    margin: 0 10px;
+}
+
+.nav-link:hover {
+    color: #0056b3;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    flex: 1; /* Asegurar que el main ocupe el espacio disponible */
+    padding-bottom: 70px; /* Espacio para el footer */
+}
+
+.main-title {
+    font-size: 36px;
+    color: #333333;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.main-description {
+    font-size: 18px;
+    color: #666666;
+    margin-bottom: 40px;
+    text-align: center;
+    max-width: 800px;
+}
+
+.button {
+    background-color: #007bff;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 16px;
+}
+
+.button:hover {
+    background-color: #0056b3;
+}
+
+.footer {
+    background-color: #007bff; /* Fondo azul */
+    color: #ffffff;
+    padding: 20px 0;
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.footer-container {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    width: 100%; /* Asegura que el contenedor ocupe todo el ancho del footer */
+    box-sizing: border-box; /* Incluye padding en el ancho */
+}
+
+.footer-section {
+    flex: 1;
+    min-width: 200px;
+    margin: 10px;
+}
+
+.footer-section h4 {
+    margin-top: 0;
+}
+
+.footer-section a {
+    color: #ffffff;
+    text-decoration: none;
+    display: block;
+    margin: 5px 0;
+}
+
+.footer-section a:hover {
+    text-decoration: underline;
+}
+
+.footer-bottom {
+    text-align: center;
+    padding: 10px 0;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 20px;
+    width: 100%; /* Asegura que el contenedor ocupe todo el ancho del footer */
+    box-sizing: border-box; /* Incluye padding en el ancho */
+}
+
+.footer-bottom a {
+    color: #ffffff;
+    text-decoration: none;
+    margin: 0 10px;
+}
+
+.footer-bottom a:hover {
+    text-decoration: underline;
+}
+
+.footer input[type="email"] {
+    padding: 5px;
+    border: none;
+    border-radius: 3px;
+    margin-right: 10px;
+}
+
+.footer button {
+    padding: 5px 10px;
+    background-color: #0056b3;
+    color: #ffffff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.footer button:hover {
+    background-color: #003d80;
+}

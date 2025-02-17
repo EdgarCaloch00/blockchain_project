@@ -1,0 +1,27 @@
+/* src/styles/faqPage.css */
+
+.faq-page {
+    padding: 20px;
+    background-color: #f8f8f8;
+    color: #333;
+  }
+  
+  .faq-page h1 {
+    font-size: 2em;
+    margin-bottom: 20px;
+  }
+  
+  .faq-item {
+    margin-bottom: 20px;
+  }
+  
+  .faq-item h2 {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+  }
+  
+  .faq-item p {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+  }
+  
