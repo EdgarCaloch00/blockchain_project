@@ -12,7 +12,7 @@ const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketsFactoryABI = require('../contractsABI/TicketFactory.json');
 
-
+/*Esto es un comentario*/
 function NextArrow(props) {
   const { className, style, onClick } = props;
   return (
