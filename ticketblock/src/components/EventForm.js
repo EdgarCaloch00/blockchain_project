@@ -1,45 +1,59 @@
 // src/components/EventForm.js
-import React, {useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import '../styles/eventForm.css';
 import { Web3Context } from '../pages/web3';
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
-
+const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 
 function EventForm({ onSubmit }) {
-    const [eventsContract, setEventsContract] = useState(null);
-    const [connectedContract, setConnectedContract] = useState(null);
-    const provider = useContext(Web3Context);
-  
-  
-    useEffect(() => {
-      const fetchData = async () => {
-        if (!provider) return;
+  const [eventsContract, setEventsContract] = useState(null);
+  const [connectedContract, setConnectedContract] = useState(null);
+  const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
 
-        if (!window.ethereum) {
-          console.error('MetaMask is not installed');
-          return;
-        }  
+  const provider = useContext(Web3Context);
 
-        try {
-          const networkId = 5777; // Change this if your network ID is different
-          const eventContractAddress = EventsABI.networks[networkId].address;
-          const eventsContractABI = EventsABI.abi;
 
-          const eventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, provider);
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!provider) return;
 
-          const signer = await provider.getSigner();
-          const connectedContract = eventsContract.connect(signer);
+      if (!window.ethereum) {
+        console.error('MetaMask is not installed');
+        return;
+      }
 
-          setConnectedContract(connectedContract);
-          setEventsContract(eventsContract);
-        } catch (error) {
-          console.error('Error fetching data:', error);
-        }
-      };
-  
-      fetchData();
-    }, [provider]);
+      try {
+        const networkId = 5777; // Change if different
+
+        // Events contract setup
+        const eventContractAddress = EventsABI.networks[networkId].address;
+        const eventsContractABI = EventsABI.abi;
+        const eventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, provider);
+
+        // TicketFactory contract setup
+        const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId].address;
+        const ticketFactoryContractABI = TicketFactoryABI.abi;
+        const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, provider);
+
+        // Signer for write access
+        const signer = await provider.getSigner();
+
+        const connectedEventsContract = eventsContract.connect(signer);
+        const connectedTicketFactoryContract = ticketFactoryContract.connect(signer);
+
+        // Save connected contracts in state
+        setConnectedContract(connectedEventsContract);
+        setEventsContract(eventsContract);
+        setTicketFactoryContract(connectedTicketFactoryContract);
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, [provider]);
 
 
   const [title, setTitle] = useState('');
@@ -49,6 +63,7 @@ function EventForm({ onSubmit }) {
   const [location, setLocation] = useState('');
   const [resellable, setResellable] = useState(false);
   const [totalSeats, setTotalSeats] = useState('');
+
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [prices, setPrices] = useState({
@@ -57,9 +72,9 @@ function EventForm({ onSubmit }) {
     generalB: ''
   });
   const [quantities, setQuantities] = useState({
-    vip: '',
-    generalA: '',
-    generalB: ''
+    vip: 0,
+    generalA: 0,
+    generalB: 0
   });
   const [category, setCategory] = useState('');
   const [highlightedField, setHighlightedField] = useState('');
@@ -77,31 +92,6 @@ function EventForm({ onSubmit }) {
     e.preventDefault();
     if (!eventsContract) return;
 
-    try {  
-      await connectedContract.createEvent(
-        title, 
-        description, 
-        category, 
-        "location", 
-        Math.floor(new Date(date).getTime() / 1000)
-      );
-
-      await connectedContract.generateEventTickets(
-        quantities.generalA,
-        prices.generalA,
-        quantities.generalB,
-        prices.generalB,
-        quantities.vip,
-        prices.vip,
-        resellable
-      );
-
-      setHighlightedField('');
-
-    } catch (error) {
-      console.error('Error adding event:', error);
-    }
-
     const currentDate = new Date();
     const eventDate = new Date(date);
     const totalTickets = parseInt(quantities.vip, 10) + parseInt(quantities.generalA, 10) + parseInt(quantities.generalB, 10);
@@ -117,11 +107,39 @@ function EventForm({ onSubmit }) {
       setHighlightedField('totalSeats');
       return;
     }
+
+    try {
+      await connectedContract.createEvent(
+        title,
+        description,
+        category,
+        "location",
+        Math.floor(eventDate.getTime() / 1000)
+      );
+
+
+      alert("¡Evento creado con éxito!");
+      setHighlightedField("");
+
+      const totalEvents = await eventsContract.getEventsCount();
+      const newEventId = totalEvents.toNumber() - 1; // eventId of the newly created event
+
+      // Call generateTicketsForEvent on TicketFactory contract
+      await ticketFactoryContract.generateEventTickets(
+        newEventId,
+        parseInt(quantities.generalA, 10),  // type A quantity
+        parseInt(prices.generalA, 10),      // type A price
+        parseInt(quantities.generalB, 10),  // type B quantity
+        parseInt(prices.generalB, 10),      // type B price
+        parseInt(quantities.vip, 10),       // VIP quantity
+        parseInt(prices.vip, 10),           // VIP price
+        true                               // resellable, change as needed
+      );
+
+    } catch (error) {
+      console.error('Error adding event:', error);
+    }
   };
-
-
-
-
 
 
   const handleImageChange = (e) => {
@@ -140,7 +158,7 @@ function EventForm({ onSubmit }) {
 
   const handleQuantityChange = (e) => {
     const { name, value } = e.target;
-    const totalTickets = parseInt(quantities.vip, 10) + parseInt(quantities.generalA, 10) + parseInt(quantities.generalB, 10) - quantities[name] + parseInt(value, 10);
+    const totalTickets = quantities.vip + quantities.generalA + quantities.generalB - quantities[name] + (value === '' ? 0 : +value); // Use +value to coerce to a number
 
     if (totalTickets > totalSeats) {
       alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
@@ -150,8 +168,9 @@ function EventForm({ onSubmit }) {
 
     setQuantities({
       ...quantities,
-      [name]: value >= 0 ? value : 0
+      [name]: value === '' ? 0 : Math.max(0, +value) // Ensure the value is non-negative, default to 0 if empty
     });
+
     setHighlightedField('');
   };
 
@@ -235,7 +254,7 @@ function EventForm({ onSubmit }) {
             type="number"
             id="quantities.vip"
             name="vip"
-            value={quantities.vip}
+            value={quantities.vip === 0 ? '' : quantities.vip}
             onChange={handleQuantityChange}
             min="0"
             placeholder="Cantidad VIP"
@@ -260,7 +279,7 @@ function EventForm({ onSubmit }) {
             type="number"
             id="quantities.generalA"
             name="generalA"
-            value={quantities.generalA}
+            value={quantities.generalA === 0 ? '' : quantities.generalA}
             onChange={handleQuantityChange}
             min="0"
             placeholder="Cantidad General A"
@@ -285,7 +304,7 @@ function EventForm({ onSubmit }) {
             type="number"
             id="quantities.generalB"
             name="generalB"
-            value={quantities.generalB}
+            value={quantities.generalB === 0 ? '' : quantities.generalB}
             onChange={handleQuantityChange}
             min="0"
             placeholder="Cantidad General B"

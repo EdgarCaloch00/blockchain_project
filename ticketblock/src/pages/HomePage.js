@@ -1,18 +1,19 @@
 // src/pages/HomePage.js
+
+import React, { useContext, useEffect, useState } from 'react';
 import Slider from 'react-slick';
 import { Link } from 'react-router-dom';
+import { Web3Context } from './web3';
 import '../styles/homepage.css';
 import 'slick-carousel/slick/slick.css';
 import 'slick-carousel/slick/slick-theme.css';
 import imagen1 from '../assets/images/evento1.jpeg';
-import { Web3Context } from './web3';
-import React, {useContext, useEffect, useState } from 'react';
+
 
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketsFactoryABI = require('../contractsABI/TicketFactory.json');
 
-/*Esto es un comentario*/
 function NextArrow(props) {
   const { className, style, onClick } = props;
   return (
@@ -63,10 +64,8 @@ function HomePage() {
         console.log("Total Events:", totalEvents.toNumber());
   
         const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, TicketsFactoryABI.abi, provider);
-        const item = await ticketFactoryContract.getItem(0, 12);
-        console.log(item._type);
-        console.log(item.row.toNumber());
-        console.log(item.column.toNumber());
+        const item = await ticketFactoryContract.getTicketsByEvent(0);
+        console.log(item);
       } catch (error) {
         console.error("Error fetching data:", error);
       }

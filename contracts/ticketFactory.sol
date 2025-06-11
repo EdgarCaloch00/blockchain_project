@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 contract TicketFactory {
-    // Define a struct named Item
     struct Item {
         uint256 eventId;
         uint256 ticketId;
@@ -15,50 +14,56 @@ contract TicketFactory {
         uint256 column;
     }
 
-    // Define a mapping to store arrays of Item structs
-    mapping(uint256 => Item[]) public items_map;
-
-    // Variable to keep track of the current array ID
-    uint public currentArrayId;
-
-        // Function to add a new array of structs to the mapping
-    function addItems(
-        uint256 _eventId, 
-        uint256 _typeAQty, //15
-        uint256 _typeAPrice, //10
-        uint256 _typeBQty, //15
-        uint256 _typeBPrice, //9
-        uint256 _typeVIPQty, 
-        uint256 _typeVIPPrice,
-        bool _resellable
-    ) 
-        public 
-    {
-        // Get a reference to the storage array
-        Item[] storage storageArray = items_map[currentArrayId];
-        
-        addItemBatch(storageArray, _eventId, _typeAQty, _typeAPrice, "typeA", _resellable);
-        addItemBatch(storageArray, _eventId, _typeBQty, _typeBPrice, "typeB", _resellable);
-        addItemBatch(storageArray, _eventId, _typeVIPQty, _typeVIPPrice, "typeVIP", _resellable);
-
-        currentArrayId++;
+    struct EventTickets {
+        Item[] items;
     }
 
-    function addItemBatch(
-        Item[] storage storageArray,
-        uint256 _eventId, 
-        uint256 _quantity, 
-        uint256 _price, 
-        string memory _itemType, 
-        bool _resellable
-    ) 
-        internal 
-    {
+    // Mapping from eventId to the collection of tickets for that event
+    mapping(uint256 => EventTickets) private ticketsPerEvent;
+
+    // Generate tickets for an event with three categories: typeA, typeB, typeVIP
+    function generateEventTickets(
+        uint256 eventId,
+        uint256 typeAQty,
+        uint256 typeAPrice,
+        uint256 typeBQty,
+        uint256 typeBPrice,
+        uint256 typeVIPQty,
+        uint256 typeVIPPrice,
+        bool resellable
+    ) external {
+        _addTickets(eventId, typeAQty, typeAPrice, "typeA", resellable);
+        _addTickets(eventId, typeBQty, typeBPrice, "typeB", resellable);
+        _addTickets(eventId, typeVIPQty, typeVIPPrice, "typeVIP", resellable);
+    }
+
+    // Internal helper to add a batch of tickets for a specific event and ticket type
+    function _addTickets(
+        uint256 eventId,
+        uint256 quantity,
+        uint256 price,
+        string memory ticketType,
+        bool resellable
+    ) internal {
+        EventTickets storage eventTickets = ticketsPerEvent[eventId];
+
         uint256 currentRow = 1;
         uint256 currentColumn = 1;
 
-        for (uint i = 0; i < _quantity; i++) {
-            storageArray.push(Item(_eventId, i, _price, _itemType, address(0), _resellable, false, currentRow, currentColumn));
+        for (uint256 i = 0; i < quantity; i++) {
+            uint256 ticketId = eventTickets.items.length;
+            eventTickets.items.push(Item({
+                eventId: eventId,
+                ticketId: ticketId,
+                price: price,
+                ticketType: ticketType,
+                owner: address(0),
+                resellable: resellable,
+                sold: false,
+                row: currentRow,
+                column: currentColumn
+            }));
+
             currentColumn++;
             if (currentColumn > 10) {
                 currentColumn = 1;
@@ -67,38 +72,8 @@ contract TicketFactory {
         }
     }
 
-    function buyTicket(uint256 eventId, uint256 ticketId) public payable {
-        // Find the ticket in the array for the given event
-        Item[] storage tickets = items_map[eventId];
-        bool found = false;
-        
-        for (uint256 i = 0; i < tickets.length; i++) {
-            if (tickets[i].ticketId == ticketId) {
-                found = true;
-                require(!tickets[i].sold, "Ticket already sold");
-                require(msg.value == tickets[i].price, "Incorrect ticket price");
-
-                // Update the ticket owner and mark as sold
-                tickets[i].owner = msg.sender;
-                tickets[i].sold = true;
-
-                // Emit the event
-                break;
-            }
-        }
-
-        // If the ticket was not found, revert the transaction
-        require(found, "Ticket not found");
-    }
-
-    function getItem(uint arrayId, uint index) public view 
-    returns (uint256 row, uint256 column, string memory _type) {
-        require(index < items_map[arrayId].length, "Index out of bounds");
-        Item storage item = items_map[arrayId][index];
-        return (item.row, item.column, item.ticketType);
-    }
-    
-    function getItemsByEvent(uint256 key) public view returns (Item[] memory) {
-        return items_map[key];
+    // View function to get all tickets for an event
+    function getTicketsByEvent(uint256 eventId) external view returns (Item[] memory) {
+        return ticketsPerEvent[eventId].items;
     }
 }

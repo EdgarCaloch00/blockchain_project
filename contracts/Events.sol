@@ -16,32 +16,36 @@ contract Events {
         bool isActive;
     }
 
-    TicketFactory public ticketFactory;
+    // Store events in a mapping by ID
+    mapping(uint256 => Event) public events;
 
-    // Store events in an array
-    Event[] public events;
+    // Store all event IDs for iteration
+    uint256[] public eventIds;
+
+    // Counter for total events created
+    uint256 public totalEvents;
 
     // Event to notify when a new event is created
     event EventCreated(uint256 eventId, string title, string place);
 
-    // Constructor to initialize the TicketFactory address
+    TicketFactory public ticketFactory;
+
+    // Initialize the TicketFactory address when deploying Events
     constructor(address _ticketFactoryAddress) {
         ticketFactory = TicketFactory(_ticketFactoryAddress);
     }
 
     // Function to create a new event
     function createEvent(
-        string memory _title, 
-        string memory _description, 
+        string memory _title,
+        string memory _description,
         string memory _category,
-        string memory _place, 
+        string memory _place,
         uint256 _eventDate
-    ) 
-        external 
-    {
-        uint256 eventId = events.length;
+    ) external {
+        uint256 eventId = totalEvents;
 
-        events.push(Event({
+        events[eventId] = Event({
             eventId: eventId,
             title: _title,
             description: _description,
@@ -50,49 +54,30 @@ contract Events {
             date: _eventDate,
             ticketsSold: 0,
             isActive: true
-        }));
+        });
+
+        eventIds.push(eventId);
+        totalEvents++;
 
         emit EventCreated(eventId, _title, _place);
     }
 
-    function generateEventTickets(
-        uint256 _typeAQty, 
-        uint256 _typeAPrice,
-        uint256 _typeBQty, 
-        uint256 _typeBPrice,
-        uint256 _typeVIPQty, 
-        uint256 _typeVIPPrice,
-        bool _resellable
-    )
-        external
-    {
-        require(events.length > 0, "No events created yet");
-
-        uint256 eventId = events.length - 1;
-
-        // Call addItems function of the TicketFactory contract
-        ticketFactory.addItems(
-        eventId, 
-        _typeAQty, 
-        _typeAPrice, 
-        _typeBQty, 
-        _typeBPrice, 
-        _typeVIPQty, 
-        _typeVIPPrice,
-        _resellable);
-    }
-
     // Function to display all events
     function displayEvents() external view returns (Event[] memory) {
-        return events;
+        Event[] memory allEvents = new Event[](totalEvents);
+        for (uint256 i = 0; i < totalEvents; i++) {
+            allEvents[i] = events[eventIds[i]];
+        }
+        return allEvents;
     }
+
     // Function to get event details by ID
     function getEvent(uint256 _eventId) external view returns (Event memory) {
-        require(_eventId < events.length, "Event does not exist");
+        require(_eventId < totalEvents, "Event does not exist");
         return events[_eventId];
     }
 
     function getEventsCount() public view returns (uint256) {
-        return events.length;
+        return totalEvents;
     }
 }

@@ -31,6 +31,11 @@ function Header() {
     setMenuOpen(false);
   };
 
+  const logout = () => {
+    setConnection(false);
+    window.location.reload(); // Reload page to clear session
+  };
+
   async function requestAccount() {
     if (window.ethereum) {
       try {
@@ -116,9 +121,9 @@ function Header() {
                 <button className="menu-icon" onClick={toggleMenu} style={{ marginLeft: '10px' }}><FaBars /></button>
               </>
             ) : (
-              <button
-                onClick={requestAccount}
-              >{connected ? Id : "Conectarse"}</button>
+        <button onClick={requestAccount}>
+          {connected ? `${Id}` : "Conectarse"}
+        </button>
             )}
           </nav>
         </div>
