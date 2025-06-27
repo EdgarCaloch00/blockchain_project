@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import "./TicketFactory.sol";
 
@@ -11,31 +11,32 @@ contract Events {
         string description;
         string category;
         string place;
-        uint256 date; // Using a Unix timestamp for date
+        uint256 date; // Unix timestamp
         uint256 ticketsSold;
         bool isActive;
     }
 
-    // Store events in a mapping by ID
+    // Mapping from eventId to event details
     mapping(uint256 => Event) public events;
 
-    // Store all event IDs for iteration
+    // List of event IDs
     uint256[] public eventIds;
 
     // Counter for total events created
     uint256 public totalEvents;
 
-    // Event to notify when a new event is created
-    event EventCreated(uint256 eventId, string title, string place);
-
+    // TicketFactory reference
     TicketFactory public ticketFactory;
 
-    // Initialize the TicketFactory address when deploying Events
+    // Event emitted when a new event is created
+    event EventCreated(uint256 eventId, string title, string place);
+
+    // Constructor to initialize TicketFactory address
     constructor(address _ticketFactoryAddress) {
         ticketFactory = TicketFactory(_ticketFactoryAddress);
     }
 
-    // Function to create a new event
+    // Create a new event
     function createEvent(
         string memory _title,
         string memory _description,
@@ -62,7 +63,7 @@ contract Events {
         emit EventCreated(eventId, _title, _place);
     }
 
-    // Function to display all events
+    // Return all created events
     function displayEvents() external view returns (Event[] memory) {
         Event[] memory allEvents = new Event[](totalEvents);
         for (uint256 i = 0; i < totalEvents; i++) {
@@ -71,13 +72,26 @@ contract Events {
         return allEvents;
     }
 
-    // Function to get event details by ID
+    // Get a single event by ID
     function getEvent(uint256 _eventId) external view returns (Event memory) {
         require(_eventId < totalEvents, "Event does not exist");
         return events[_eventId];
     }
 
+    // Get total number of events
     function getEventsCount() public view returns (uint256) {
         return totalEvents;
+    }
+
+    // ✅ Get events where msg.sender owns at least one ticket
+    function getMyEvents() external view returns (Event[] memory) {
+        uint256[] memory owned = ticketFactory.getOwnedEventIds(msg.sender);
+        Event[] memory result = new Event[](owned.length);
+
+        for (uint256 i = 0; i < owned.length; i++) {
+            result[i] = events[owned[i]];
+        }
+
+        return result;
     }
 }

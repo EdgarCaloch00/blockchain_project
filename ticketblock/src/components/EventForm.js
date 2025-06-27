@@ -136,6 +136,9 @@ function EventForm({ onSubmit }) {
         true                               // resellable, change as needed
       );
 
+      window.location.reload(); // Reloads the current page
+
+
     } catch (error) {
       console.error('Error adding event:', error);
     }

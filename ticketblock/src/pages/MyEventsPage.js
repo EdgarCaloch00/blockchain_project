@@ -1,12 +1,15 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useContext, useEffect, useState } from 'react';
+//import { Link } from 'react-router-dom';
 import '../styles/myEventsPage.css';
+import { Web3Context } from '../pages/web3';
 import imagen1 from '../assets/images/evento1.jpeg';
 import imagen2 from '../assets/images/evento2.jpeg';
 import imagen3 from '../assets/images/evento3.jpeg';
+const EventsABI = require('../contractsABI/Events.json');
+const ethers = require("ethers");
 
 // Datos de ejemplo para eventos comprados y creados
-const purchasedEvents = [
+/*const purchasedEvents = [
   {
     id: 'evento1',
     title: 'Concierto de Música',
@@ -44,51 +47,63 @@ const createdEvents = [
     ticketsAvailable: 50,
     category: 'entertainment'
   }
-];
+];*/
 
-function MyEventsPage() {
+const MyEventsPage = () => {
+  const [eventsContract, setEventsContract] = useState(null);
+
+  const provider = useContext(Web3Context);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!provider) return;
+
+      if (!window.ethereum) {
+        console.error('MetaMask is not installed');
+        return;
+      }
+
+      try {
+        const networkId = 5777; // Change if different
+
+        // Events contract setup
+        const eventContractAddress = EventsABI.networks[networkId].address;
+        const eventsContractABI = EventsABI.abi;
+        const eventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, provider);
+
+        // Signer for write access
+        setEventsContract(eventsContract);
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, [provider]);
+
+  // Call getMyEvents from contract
+  useEffect(() => {
+    const fetchEvents = async () => {
+      if (!eventsContract) return;
+
+      try {
+        const myEvents = await eventsContract.getMyEvents();
+        console.log('Events you have tickets for:', myEvents);
+      } catch (err) {
+        console.error('Failed to fetch events', err);
+      }
+    };
+
+    fetchEvents();
+  }, [eventsContract]);
+
   return (
-    <div className="my-events-page">
-      <h1>Mis Eventos</h1>
-      
-      <section className="purchased-events">
-        <h2>Eventos Comprados</h2>
-        <ul className="events-list">
-          {purchasedEvents.map(event => (
-            <li key={event.id} className="event-item">
-              <div className="event-info">
-                <h2>{event.title}</h2>
-                <p>Fecha: {event.date}</p>
-                <p>Ubicación: {event.location}</p>
-                <p>Asiento: {event.seat}</p>
-                <Link to={`/ticket/${event.id}`} className="button">Ver Boleto</Link>
-              </div>
-              <img src={event.image} alt={event.title} className="event-thumbnail" />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="created-events">
-        <h2>Eventos Creados</h2>
-        <ul className="events-list">
-          {createdEvents.map(event => (
-            <li key={event.id} className="event-item">
-              <div className="event-info">
-                <h2>{event.title}</h2>
-                <p>Fecha: {event.date}</p>
-                <p>Ubicación: {event.location}</p>
-                <p>Boletos Disponibles: {event.ticketsAvailable}</p>
-                <p>Categoría: {event.category}</p>
-                <Link to={`/event/${event.id}`} className="button">Ver Detalles</Link>
-              </div>
-              <img src={event.image} alt={event.title} className="event-thumbnail" />
-            </li>
-          ))}
-        </ul>
-      </section>
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-2">Your Purchased Events</h1>
+      <p>Check the console for output.</p>
     </div>
   );
-}
+};
 
 export default MyEventsPage;

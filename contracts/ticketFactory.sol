@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 contract TicketFactory {
     struct Item {
@@ -10,6 +10,7 @@ contract TicketFactory {
         address owner;
         bool resellable;
         bool sold;
+        bool scanned;
         uint256 row;
         uint256 column;
     }
@@ -18,10 +19,14 @@ contract TicketFactory {
         Item[] items;
     }
 
-    // Mapping from eventId to the collection of tickets for that event
+    // Mapping from eventId to tickets
     mapping(uint256 => EventTickets) private ticketsPerEvent;
 
-    // Generate tickets for an event with three categories: typeA, typeB, typeVIP
+    // ✅ Mapping to track events owned by each address
+    mapping(address => uint256[]) private ownedEventIds;
+    mapping(address => mapping(uint256 => bool)) private hasEvent; // for duplicate prevention
+
+    // Generate tickets for an event with three categories
     function generateEventTickets(
         uint256 eventId,
         uint256 typeAQty,
@@ -37,7 +42,7 @@ contract TicketFactory {
         _addTickets(eventId, typeVIPQty, typeVIPPrice, "typeVIP", resellable);
     }
 
-    // Internal helper to add a batch of tickets for a specific event and ticket type
+    // Internal function to create a batch of tickets
     function _addTickets(
         uint256 eventId,
         uint256 quantity,
@@ -60,6 +65,7 @@ contract TicketFactory {
                 owner: address(0),
                 resellable: resellable,
                 sold: false,
+                scanned: false,
                 row: currentRow,
                 column: currentColumn
             }));
@@ -72,8 +78,56 @@ contract TicketFactory {
         }
     }
 
-    // View function to get all tickets for an event
+    // ✅ Buy ticket and track ownership
+    function buyTicket(uint256 eventId, uint256 ticketId) external payable {
+        EventTickets storage eventTickets = ticketsPerEvent[eventId];
+        require(ticketId < eventTickets.items.length, "Invalid ticketId");
+
+        Item storage ticket = eventTickets.items[ticketId];
+
+        require(!ticket.sold, "Ticket already sold");
+        require(msg.value == ticket.price, "Incorrect payment amount");
+
+        ticket.owner = msg.sender;
+        ticket.sold = true;
+
+        // Track event ownership only once per user
+        if (!hasEvent[msg.sender][eventId]) {
+            ownedEventIds[msg.sender].push(eventId);
+            hasEvent[msg.sender][eventId] = true;
+        }
+
+        // Funds could be forwarded to event organizer here if needed
+        // payable(organizer).transfer(msg.value);
+    }
+
+    // View function to get unsold tickets for an event
     function getTicketsByEvent(uint256 eventId) external view returns (Item[] memory) {
-        return ticketsPerEvent[eventId].items;
+        EventTickets storage eventTickets = ticketsPerEvent[eventId];
+        uint256 total = eventTickets.items.length;
+
+        uint256 unsoldCount = 0;
+        for (uint256 i = 0; i < total; i++) {
+            if (!eventTickets.items[i].sold) {
+                unsoldCount++;
+            }
+        }
+
+        Item[] memory unsoldTickets = new Item[](unsoldCount);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < total; i++) {
+            if (!eventTickets.items[i].sold) {
+                unsoldTickets[index] = eventTickets.items[i];
+                index++;
+            }
+        }
+
+        return unsoldTickets;
+    }
+
+    // ✅ Public view to get all event IDs a user has purchased tickets for
+    function getOwnedEventIds(address user) external view returns (uint256[] memory) {
+        return ownedEventIds[user];
     }
 }

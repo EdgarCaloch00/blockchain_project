@@ -2,6 +2,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import HomePage from './pages/HomePage';
+import ButtonPage from './pages/ButtonPage';
+import ViewNFTPage from './pages/ViewNFTPage';
 import EventsPage from './pages/EventsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
 import MyEventsPage from './pages/MyEventsPage';
@@ -23,6 +25,8 @@ function App() {
           <div className="main">
             <Routes>
               <Route exact path="/" element={<HomePage />} />
+              <Route path="/button" element={<ButtonPage />} />
+              <Route path="/view" element={<ViewNFTPage />} />
               <Route path="/events" element={<EventsPage />} />
               <Route path="/events/:category" element={<EventsPage />} />
               <Route path="/event/:id" element={<EventDetailsPage />} />
