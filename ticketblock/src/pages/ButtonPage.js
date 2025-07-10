@@ -97,7 +97,7 @@ function ButtonPage() {
             const metadata = {
                 name: `VIP Ticket #${ticketId}`,
                 description: `Ticket for Event ${eventId}, VIP seating.`,
-                image: Imagedata.imageUrl, // QR image instead of hardcoded IPFS link
+                image: Imagedata.imageUrl, // replace with actual URI
                 attributes: [
                     { trait_type: "Event ID", value: eventId },
                     { trait_type: "Ticket ID", value: ticketId },

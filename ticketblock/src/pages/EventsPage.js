@@ -1,76 +1,92 @@
 // src/pages/EventsPage.js
-import React from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import '../styles/eventsPage.css'; // Asegúrate de crear este archivo de estilos
-
-const events = [
-  {
-    id: 'evento1',
-    title: 'Concierto de Música',
-    date: '20 de Mayo, 2024',
-    time: '20:00',
-    location: 'Auditorio Nacional',
-    ticketTypes: [
-      { type: 'VIP', price: 1000 },
-      { type: 'General A', price: 500 },
-      { type: 'General B', price: 300 }
-    ],
-    availableSeats: 5 // Ejemplo de asientos disponibles
-  },
-  {
-    id: 'evento2',
-    title: 'Obra de Teatro',
-    date: '25 de Mayo, 2024',
-    time: '19:00',
-    location: 'Teatro Metropolitano',
-    ticketTypes: [
-      { type: 'VIP', price: 700 },
-      { type: 'General A', price: 350 },
-      { type: 'General B', price: 200 }
-    ],
-    availableSeats: 0 // Ejemplo de asientos disponibles
-  },
-  {
-    id: 'evento3',
-    title: 'Festival de Comedia',
-    date: '30 de Mayo, 2024',
-    time: '18:00',
-    location: 'Foro Sol',
-    ticketTypes: [
-      { type: 'VIP', price: 900 },
-      { type: 'General A', price: 450 },
-      { type: 'General B', price: 300 }
-    ],
-    availableSeats: 20 // Ejemplo de asientos disponibles
-  }
-];
+import '../styles/eventsPage.css';
+import { Web3Context } from './web3';
+const ethers = require('ethers');
+const EventsABI = require('../contractsABI/Events.json');
+const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 
 const EventsPage = () => {
+  const [events, setEvents] = useState([]);
+  const provider = useContext(Web3Context);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      if (!provider) return;
+
+      try {
+        const networkId = 5777;
+        const eventContractAddress = EventsABI.networks[networkId]?.address;
+        const ticketFactoryAddress = TicketFactoryABI.networks[networkId]?.address;
+
+        if (!eventContractAddress || !ticketFactoryAddress) {
+          console.error('Missing contract address');
+          return;
+        }
+
+        const eventsContract = new ethers.Contract(eventContractAddress, EventsABI.abi, provider);
+        const ticketFactoryContract = new ethers.Contract(ticketFactoryAddress, TicketFactoryABI.abi, provider);
+
+        const rawEvents = await eventsContract.displayEvents();
+
+        const upcoming = rawEvents.filter(event => new Date(event.date * 1000) >= new Date());
+
+        const parsed = await Promise.all(upcoming.map(async (event) => {
+          const eventId = event.eventId.toNumber();
+          const availableSeats = Number(event.availableSeats);
+
+          // Fetch available tickets for the event
+          const tickets = await ticketFactoryContract.getTicketsByEvent(eventId);
+          const unsold = tickets.filter(ticket => !ticket.sold);
+          const prices = unsold.map(ticket => parseFloat(ethers.utils.formatEther(ticket.price)));
+
+          const lowestPrice = prices.length > 0 ? Math.min(...prices) : null;
+
+          return {
+            eventId,
+            title: event.title,
+            location: event.place,
+            date: new Date(event.date * 1000).toLocaleDateString(),
+            time: new Date(event.date * 1000).toLocaleTimeString(),
+            availableSeats,
+            lowestPrice
+          };
+        }));
+
+        setEvents(parsed);
+      } catch (error) {
+        console.error('Failed to fetch events:', error);
+      }
+    };
+
+    fetchEvents();
+  }, [provider]);
+
   return (
     <div className="events-page">
       <h1>Eventos Disponibles</h1>
       <ul className="events-list">
         {events.map((event) => {
-          // Encuentra el precio más bajo entre los tipos de boletos
-          const lowestPrice = Math.min(...event.ticketTypes.map(ticket => ticket.price));
-          // Define el mensaje de disponibilidad
           let availabilityMessage = '';
           if (event.availableSeats === 0) {
             availabilityMessage = 'Agotado';
           } else if (event.availableSeats <= 10) {
             availabilityMessage = 'Últimos boletos';
+          } else if (event.lowestPrice !== null) {
+            availabilityMessage = `Boletos disponibles desde: ${event.lowestPrice} ETH`;
           } else {
-            availabilityMessage = `Boletos disponibles desde: MXN ${lowestPrice}`;
+            availabilityMessage = 'Boletos disponibles';
           }
 
           return (
-            <li key={event.id} className="event-item">
+            <li key={event.eventId} className="event-item">
               <h2>{event.title}</h2>
               <p>{event.date} a las {event.time}</p>
               <p>{event.location}</p>
               <p>{availabilityMessage}</p>
-              <Link 
-                to={`/event/${event.id}`} 
+              <Link
+                to={`/event/${event.eventId}`}
                 className={`button ${event.availableSeats === 0 ? 'disabled' : ''}`}
                 tabIndex={event.availableSeats === 0 ? '-1' : '0'}
                 aria-disabled={event.availableSeats === 0 ? 'true' : 'false'}

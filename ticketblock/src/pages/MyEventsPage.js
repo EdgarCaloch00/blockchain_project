@@ -1,107 +1,157 @@
 import React, { useContext, useEffect, useState } from 'react';
-//import { Link } from 'react-router-dom';
-import '../styles/myEventsPage.css';
+import { useNavigate } from 'react-router-dom';
 import { Web3Context } from '../pages/web3';
-import imagen1 from '../assets/images/evento1.jpeg';
-import imagen2 from '../assets/images/evento2.jpeg';
-import imagen3 from '../assets/images/evento3.jpeg';
+const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 const EventsABI = require('../contractsABI/Events.json');
-const ethers = require("ethers");
-
-// Datos de ejemplo para eventos comprados y creados
-/*const purchasedEvents = [
-  {
-    id: 'evento1',
-    title: 'Concierto de Música',
-    date: '20 de Mayo, 2024',
-    location: 'Auditorio Nacional, Ciudad de México',
-    seat: 'Fila 1, Asiento 2',
-    image: imagen1
-  },
-  {
-    id: 'evento2',
-    title: 'Obra de Teatro',
-    date: '25 de Mayo, 2024',
-    location: 'Teatro Metropolitano, Ciudad de México',
-    seat: 'Fila 3, Asiento 5',
-    image: imagen2
-  }
-];
-
-const createdEvents = [
-  {
-    id: 'evento3',
-    title: 'Festival de Comedia',
-    date: '30 de Mayo, 2024',
-    location: 'Foro Sol, Ciudad de México',
-    image: imagen3,
-    ticketsAvailable: 20,
-    category: 'entertainment'
-  },
-  {
-    id: 'evento4',
-    title: 'Show de Magia',
-    date: '15 de Junio, 2024',
-    location: 'Teatro Insurgentes, Ciudad de México',
-    image: imagen3,
-    ticketsAvailable: 50,
-    category: 'entertainment'
-  }
-];*/
+const ethers = require('ethers');
 
 const MyEventsPage = () => {
+  const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
   const [eventsContract, setEventsContract] = useState(null);
-
+  const [myEvents, setMyEvents] = useState([]);
+  const [userAddress, setUserAddress] = useState(null);
   const provider = useContext(Web3Context);
+  const navigate = useNavigate();
 
+  // Setup contracts once
   useEffect(() => {
-    const fetchData = async () => {
-      if (!provider) return;
-
-      if (!window.ethereum) {
-        console.error('MetaMask is not installed');
-        return;
-      }
+    const setupContracts = async () => {
+      if (!provider || !window.ethereum) return;
 
       try {
-        const networkId = 5777; // Change if different
+        const networkId = 5777;
 
-        // Events contract setup
-        const eventContractAddress = EventsABI.networks[networkId].address;
-        const eventsContractABI = EventsABI.abi;
-        const eventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, provider);
+        const tfAddress = TicketFactoryABI.networks[networkId].address;
+        const tfABI = TicketFactoryABI.abi;
+        const tfContract = new ethers.Contract(tfAddress, tfABI, provider);
+        setTicketFactoryContract(tfContract);
 
-        // Signer for write access
+        const eventsAddress = EventsABI.networks[networkId].address;
+        const eventsABI = EventsABI.abi;
+        const eventsContract = new ethers.Contract(eventsAddress, eventsABI, provider);
         setEventsContract(eventsContract);
-
-      } catch (error) {
-        console.error('Error fetching data:', error);
+      } catch (err) {
+        console.error('Contract setup error:', err);
       }
     };
 
-    fetchData();
+    setupContracts();
   }, [provider]);
 
-  // Call getMyEvents from contract
+  // Detect current account + listen to account changes, recreating signer fresh each time
   useEffect(() => {
-    const fetchEvents = async () => {
-      if (!eventsContract) return;
+    const getCurrentAddress = async () => {
+      if (window.ethereum && provider) {
+        try {
+          // Request accounts to prompt MetaMask connection if needed
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
 
-      try {
-        const myEvents = await eventsContract.getMyEvents();
-        console.log('Events you have tickets for:', myEvents);
-      } catch (err) {
-        console.error('Failed to fetch events', err);
+          // Recreate signer fresh here — don't reuse any cached signer
+          const freshSigner = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+
+          const address = await freshSigner.getAddress();
+          console.log("Detected user address on reload (fresh signer):", address);
+          setUserAddress(address);
+        } catch (err) {
+          console.error("Error getting current address:", err);
+          setUserAddress(null);
+        }
       }
     };
 
-    fetchEvents();
-  }, [eventsContract]);
+    getCurrentAddress();
+
+    const handleAccountsChanged = (accounts) => {
+      console.log('Accounts changed:', accounts);
+      if (accounts.length > 0) {
+        setUserAddress(accounts[0]);
+      } else {
+        setUserAddress(null);
+      }
+    };
+
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+
+      window.ethereum.on('chainChanged', () => {
+        window.location.reload();
+      });
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', () => window.location.reload());
+      }
+    };
+  }, [provider]);
+
+  // Reset events immediately on address change
+  useEffect(() => {
+    setMyEvents([]); // clear events when userAddress changes
+  }, [userAddress]);
+
+  // Fetch events for the current address
+  useEffect(() => {
+    const fetchUserEvents = async () => {
+      if (!ticketFactoryContract || !eventsContract || !provider || !userAddress) return;
+
+      try {
+        const eventIds = await ticketFactoryContract.getOwnedEventIds(userAddress);
+        const eventIdsReadable = eventIds.map(id => id.toNumber());
+
+        console.log('Owned event IDs:', eventIdsReadable);
+
+        const eventsData = await Promise.all(
+          eventIdsReadable.map(async (id) => {
+            const event = await eventsContract.getEvent(id);
+            return {
+              eventId: event.eventId.toString(),
+              title: event.title,
+              description: event.description,
+              category: event.category,
+              place: event.place,
+              date: new Date(Number(event.date) * 1000).toLocaleString(),
+              ticketsSold: event.ticketsSold.toString(),
+              isActive: event.isActive
+            };
+          })
+        );
+
+        setMyEvents(eventsData);
+      } catch (err) {
+        console.error('Failed to fetch user events:', err);
+      }
+    };
+
+    fetchUserEvents();
+  }, [ticketFactoryContract, eventsContract, provider, userAddress]);
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-2">Your Purchased Events</h1>
-      <p>Check the console for output.</p>
+      <h1 className="text-xl font-bold mb-4">Tus Eventos Comprados</h1>
+
+      {myEvents.length === 0 ? (
+        <p>No has comprado boletos para ningún evento aún.</p>
+      ) : (
+        myEvents.map((event) => (
+          <div key={event.eventId} className="border p-4 mb-4 rounded shadow">
+            <h2 className="text-lg font-semibold">{event.title}</h2>
+            <p>{event.description}</p>
+            <p><strong>Fecha:</strong> {event.date}</p>
+            <p><strong>Lugar:</strong> {event.place}</p>
+            <p><strong>Categoría:</strong> {event.category}</p>
+            <p><strong>Tickets vendidos:</strong> {event.ticketsSold}</p>
+            <p><strong>Estado:</strong> {event.isActive ? 'Activo' : 'Inactivo'}</p>
+            <button
+              className="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              onClick={() => navigate(`/ticket/${event.eventId}`)}
+            >
+              Ver boleto
+            </button>
+          </div>
+        ))
+      )}
     </div>
   );
 };
