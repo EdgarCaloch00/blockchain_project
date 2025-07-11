@@ -1,0 +1,134 @@
+/* src/styles/seatingMap.css */
+
+.seating-map-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.seating-map {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  position: relative;
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #ff0000;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.stage {
+  background: #333;
+  color: #fff;
+  text-align: center;
+  padding: 10px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.seats-container {
+  display: flex;
+  justify-content: center;
+  overflow: auto;
+}
+
+.seats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  gap: 5px;
+}
+
+.seat {
+  width: 30px;
+  height: 30px;
+  background: #ccc;
+  text-align: center;
+  line-height: 30px;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.seat.available:hover {
+  background: #3e8e41;
+}
+
+.seat.available {
+  background: #4caf50;
+}
+
+.seat.selected {
+  background: #ffa500;
+}
+
+.seat.unavailable {
+  background: #f44336;
+  cursor: not-allowed;
+}
+
+.seat span {
+  font-size: 12px;
+  display: block;
+  white-space: nowrap;
+}
+
+.divider {
+  text-align: center;
+  margin: 10px 0;
+}
+
+.selection-info {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.confirm-button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-top: 20px;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.confirm-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.scroll-message {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 14px;
+  color: #666;
+}

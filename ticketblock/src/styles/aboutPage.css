@@ -1,0 +1,19 @@
+/* src/styles/aboutPage.css */
+
+.about-page {
+    flex: 1;
+    padding: 20px;
+    background-color: #f8f8f8;
+    color: #333;
+  }
+  
+  .about-page h1 {
+    font-size: 2em;
+    margin-bottom: 20px;
+  }
+  
+  .about-page p {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+  }
+  

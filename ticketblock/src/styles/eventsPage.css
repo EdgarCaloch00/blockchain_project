@@ -1,0 +1,64 @@
+/* src/styles/eventsPage.css */
+
+.events-page {
+    padding: 20px;
+    background-color: #f8f8f8;
+  }
+  
+  .events-list {
+    list-style-type: none;
+    padding: 0;
+  }
+  
+  .event-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #ffffff;
+    padding: 20px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .event-thumbnail {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-left: 20px;
+  }
+  
+  .event-info {
+    flex: 1;
+  }
+  
+  .event-info h2 {
+    margin: 0 0 10px;
+  }
+  
+  .event-info p {
+    margin: 0 0 10px;
+  }
+  
+  .button {
+    background-color: #007bff;
+    color: #ffffff;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 4px;
+    display: inline-block;
+    text-align: center;
+  }
+  
+  .button:hover {
+    background-color: #0056b3;
+  }
+  
+  .button.disabled {
+    background-color: #ccc;
+    color: #666;
+    pointer-events: none;
+    cursor: not-allowed;
+  }
+  
