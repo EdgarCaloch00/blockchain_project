@@ -63,10 +63,9 @@ export default function Header() {
   const navLinks = (
     <>
       <Link to="/" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Inicio</Link>
-      <Link to="/events/music" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Música</Link>
-      <Link to="/events/entertainment" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Entretenimiento</Link>
-      <Link to="/myevents" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Mis eventos</Link>
-      <Link to="/register-event" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Registrar</Link>
+      <Link to="/myevents" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Mis Compras</Link>
+      <Link to="/register-event" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Crear Evento</Link>
+        <Link to="/events/music" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Mis Eventos</Link>
     </>
   );
 
