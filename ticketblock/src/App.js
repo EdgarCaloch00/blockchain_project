@@ -3,6 +3,7 @@ import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ButtonPage from './pages/ButtonPage';
+import ScannerPage from './pages/ScannerPage';
 import ViewNFTPage from './pages/ViewNFTPage';
 import EventsPage from './pages/EventsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
@@ -26,6 +27,7 @@ function App() {
             <Routes>
               <Route exact path="/" element={<HomePage />} />
               <Route path="/button" element={<ButtonPage />} />
+              <Route path="/scanner" element={<ScannerPage />} />
               <Route path="/view" element={<ViewNFTPage />} />
               <Route path="/events" element={<EventsPage />} />
               <Route path="/events/:category" element={<EventsPage />} />

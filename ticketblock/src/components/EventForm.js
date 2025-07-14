@@ -13,7 +13,6 @@ function EventForm({ onSubmit }) {
 
   const provider = useContext(Web3Context);
 
-
   useEffect(() => {
     const fetchData = async () => {
       if (!provider) return;
@@ -86,8 +85,6 @@ function EventForm({ onSubmit }) {
   }, []);
 
 
-
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!eventsContract) return;
@@ -138,7 +135,6 @@ function EventForm({ onSubmit }) {
 
       window.location.reload(); // Reloads the current page
 
-
     } catch (error) {
       console.error('Error adding event:', error);
     }
@@ -161,7 +157,7 @@ function EventForm({ onSubmit }) {
 
   const handleQuantityChange = (e) => {
     const { name, value } = e.target;
-    const totalTickets = quantities.vip + quantities.generalA + quantities.generalB - quantities[name] + (value === '' ? 0 : +value); // Use +value to coerce to a number
+    const totalTickets = quantities.vip + quantities.generalA + quantities.generalB - quantities[name] + (value === '' ? 0 : +value);
 
     if (totalTickets > totalSeats) {
       alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
@@ -171,7 +167,7 @@ function EventForm({ onSubmit }) {
 
     setQuantities({
       ...quantities,
-      [name]: value === '' ? 0 : Math.max(0, +value) // Ensure the value is non-negative, default to 0 if empty
+      [name]: value === '' ? 0 : Math.max(0, +value)
     });
 
     setHighlightedField('');
@@ -182,9 +178,6 @@ function EventForm({ onSubmit }) {
     setter(value === '' ? '' : Math.max(0, parseInt(value, 10)));
     setHighlightedField('');
   };
-
-
-
 
 
 
