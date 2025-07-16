@@ -1,12 +1,63 @@
-// src/components/EventForm.js
 import React, { useContext, useEffect, useState } from 'react';
-import '../styles/eventForm.css';
 import { Web3Context } from '../pages/web3';
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 
-function EventForm({ onSubmit }) {
+const LOCATIONS = [
+  {
+    name: "Estadio GNP",
+    totalSeats: 30,
+    quantities: { vip: 10, generalA: 10, generalB: 10 },
+    seatsPerRow: { vip: 10, generalA: 10, generalB: 10 }
+  },
+  {
+    name: "Arena CDMX",
+    totalSeats: 40,
+    quantities: { vip: 10, generalA: 10, generalB: 20 },
+    seatsPerRow: { vip: 5, generalA: 5, generalB: 10 }
+  },
+  {
+    name: "Foro Sol",
+    totalSeats: 50,
+    quantities: { vip: 10, generalA: 10, generalB: 15 },
+    seatsPerRow: { vip: 10, generalA: 5, generalB: 6 }
+  }
+];
+
+// Dynamic seat map generator:
+const generateDynamicSeatMap = (seatQuantities, seatsPerRowConfig) => {
+  const zones = ["vip", "generalA", "generalB"];
+  const zoneLabels = { vip: "VIP", generalA: "General A", generalB: "General B" };
+
+  const seatMap = [];
+
+zones.forEach(zone => {
+  const quantity = seatQuantities[zone];
+  const seatsPerRow = seatsPerRowConfig[zone];
+  if (quantity === 0 || seatsPerRow === 0) return;
+
+  const rowsCount = Math.ceil(quantity / seatsPerRow);
+
+  for (let row = 1; row <= rowsCount; row++) {
+    const rowLabel = row.toString(); // Numeric row label
+
+    const seatsInThisRow = Math.min(seatsPerRow, quantity - (row - 1) * seatsPerRow);
+    for (let seatNumber = 1; seatNumber <= seatsInThisRow; seatNumber++) {
+      seatMap.push({
+        zone: zoneLabels[zone],
+        row: rowLabel,
+        column: seatNumber,
+        selected: true,
+      });
+    }
+  }
+});
+
+  return seatMap;
+};
+
+function EventForm() {
   const [eventsContract, setEventsContract] = useState(null);
   const [connectedContract, setConnectedContract] = useState(null);
   const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
@@ -15,45 +66,34 @@ function EventForm({ onSubmit }) {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!provider) return;
-
-      if (!window.ethereum) {
-        console.error('MetaMask is not installed');
-        return;
-      }
+      if (!provider || !window.ethereum) return;
 
       try {
-        const networkId = 5777; // Change if different
+        const networkId = 5777;
 
-        // Events contract setup
         const eventContractAddress = EventsABI.networks[networkId].address;
         const eventsContractABI = EventsABI.abi;
         const eventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, provider);
 
-        // TicketFactory contract setup
         const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId].address;
         const ticketFactoryContractABI = TicketFactoryABI.abi;
         const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, provider);
 
-        // Signer for write access
         const signer = await provider.getSigner();
-
         const connectedEventsContract = eventsContract.connect(signer);
         const connectedTicketFactoryContract = ticketFactoryContract.connect(signer);
 
-        // Save connected contracts in state
         setConnectedContract(connectedEventsContract);
         setEventsContract(eventsContract);
         setTicketFactoryContract(connectedTicketFactoryContract);
 
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching contracts:', error);
       }
     };
 
     fetchData();
   }, [provider]);
-
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -62,89 +102,47 @@ function EventForm({ onSubmit }) {
   const [location, setLocation] = useState('');
   const [resellable, setResellable] = useState(false);
   const [totalSeats, setTotalSeats] = useState('');
-
-  const [image, setImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [prices, setPrices] = useState({
-    vip: '',
-    generalA: '',
-    generalB: ''
-  });
-  const [quantities, setQuantities] = useState({
-    vip: 0,
-    generalA: 0,
-    generalB: 0
-  });
+  const [prices, setPrices] = useState({ vip: '', generalA: '', generalB: '' });
+  const [quantities, setQuantities] = useState({ vip: 0, generalA: 0, generalB: 0 });
+  const [seatsPerRow, setSeatsPerRow] = useState({ vip: 0, generalA: 0, generalB: 0 });
   const [category, setCategory] = useState('');
   const [highlightedField, setHighlightedField] = useState('');
   const [today, setToday] = useState('');
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [seatMap, setSeatMap] = useState([]);
 
   useEffect(() => {
-    const currentDate = new Date().toISOString().split('T')[0];
-    setToday(currentDate);
+    setToday(new Date().toISOString().split('T')[0]);
   }, []);
 
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!eventsContract) return;
-
-    const currentDate = new Date();
-    const eventDate = new Date(date);
-    const totalTickets = parseInt(quantities.vip, 10) + parseInt(quantities.generalA, 10) + parseInt(quantities.generalB, 10);
-
-    if (eventDate < currentDate.setHours(0, 0, 0, 0)) {
-      alert('La fecha del evento no puede ser en el pasado.');
-      setHighlightedField('date');
-      return;
-    }
-
-    if (totalTickets > totalSeats) {
-      alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
-      setHighlightedField('totalSeats');
-      return;
-    }
-
-    try {
-      await connectedContract.createEvent(
-        title,
-        description,
-        category,
-        "location",
-        Math.floor(eventDate.getTime() / 1000)
-      );
-
-
-      alert("¡Evento creado con éxito!");
-      setHighlightedField("");
-
-      const totalEvents = await eventsContract.getEventsCount();
-      const newEventId = totalEvents.toNumber() - 1; // eventId of the newly created event
-
-      // Call generateTicketsForEvent on TicketFactory contract
-      await ticketFactoryContract.generateEventTickets(
-        newEventId,
-        parseInt(quantities.generalA, 10),  // type A quantity
-        parseInt(prices.generalA, 10),      // type A price
-        parseInt(quantities.generalB, 10),  // type B quantity
-        parseInt(prices.generalB, 10),      // type B price
-        parseInt(quantities.vip, 10),       // VIP quantity
-        parseInt(prices.vip, 10),           // VIP price
-        true                               // resellable, change as needed
-      );
-
-      window.location.reload(); // Reloads the current page
-
-    } catch (error) {
-      console.error('Error adding event:', error);
+  const handleLocationChange = (e) => {
+    const selectedName = e.target.value;
+    setLocation(selectedName);
+    const found = LOCATIONS.find(loc => loc.name === selectedName);
+    if (found) {
+      setTotalSeats(found.totalSeats);
+      setQuantities(found.quantities);
+      setSeatsPerRow(found.seatsPerRow);
+      setSeatMap(generateDynamicSeatMap(found.quantities, found.seatsPerRow));
+    } else {
+      setTotalSeats('');
+      setQuantities({ vip: 0, generalA: 0, generalB: 0 });
+      setSeatsPerRow({ vip: 0, generalA: 0, generalB: 0 });
+      setSeatMap([]);
     }
   };
 
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    setImage(file);
-    setImagePreview(URL.createObjectURL(file));
+  const toggleSeat = (row, column) => {
+    setSeatMap(prev =>
+      prev.map(seat =>
+        seat.row === row && seat.column === column
+          ? { ...seat, selected: !seat.selected }
+          : seat
+      )
+    );
   };
 
   const handlePriceChange = (e) => {
@@ -155,22 +153,10 @@ function EventForm({ onSubmit }) {
     });
   };
 
-  const handleQuantityChange = (e) => {
-    const { name, value } = e.target;
-    const totalTickets = quantities.vip + quantities.generalA + quantities.generalB - quantities[name] + (value === '' ? 0 : +value);
-
-    if (totalTickets > totalSeats) {
-      alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
-      setHighlightedField(name);
-      return;
-    }
-
-    setQuantities({
-      ...quantities,
-      [name]: value === '' ? 0 : Math.max(0, +value)
-    });
-
-    setHighlightedField('');
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    setImage(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const handleNumberChange = (setter) => (e) => {
@@ -179,172 +165,312 @@ function EventForm({ onSubmit }) {
     setHighlightedField('');
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!eventsContract || isSubmitting) return;
 
+    setIsSubmitting(true);
+
+    const currentDate = new Date();
+    const eventDate = new Date(date);
+    const totalTickets = quantities.vip + quantities.generalA + quantities.generalB;
+
+    if (eventDate < currentDate.setHours(0, 0, 0, 0)) {
+      alert('La fecha del evento no puede ser en el pasado.');
+      setHighlightedField('date');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (totalTickets > totalSeats) {
+      alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
+      setHighlightedField('totalSeats');
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      await connectedContract.createEvent(
+        title,
+        description,
+        category,
+        location,
+        Math.floor(eventDate.getTime() / 1000)
+      );
+
+      alert("¡Evento creado con éxito!");
+
+      const totalEvents = await eventsContract.getEventsCount();
+      const newEventId = totalEvents.toNumber() - 1;
+
+      // Note: Order of arguments adapted to your TicketFactory:
+      // (eventId, vipQty, vipPrice, generalAQty, generalAPrice, generalBQty, generalBPrice, resellable)
+      await ticketFactoryContract.generateEventTickets(
+        newEventId,
+        quantities.vip,
+        parseInt(prices.vip, 10),
+        quantities.generalA,
+        parseInt(prices.generalA, 10),
+        quantities.generalB,
+        parseInt(prices.generalB, 10),
+        resellable
+      );
+
+      window.location.reload();
+
+    } catch (error) {
+      console.error('Error adding event:', error);
+      setIsSubmitting(false);
+    }
+  };
+
+  function SeatGrid({ seats }) {
+    const columnsCount = Math.max(...seats.map(s => s.column));
+    const rows = Array.from(new Set(seats.map(s => s.row))).sort();
+
+    return (
+      <div className="space-y-4 text-white">
+        {["VIP", "General A", "General B"].map(zone => {
+          const zoneSeats = seats.filter(s => s.zone === zone);
+          if (zoneSeats.length === 0) return null;
+
+          const zoneRows = Array.from(new Set(zoneSeats.map(s => s.row))).sort();
+
+          return (
+            <div key={zone} className="border border-gray-600 rounded-lg p-4 flex flex-col">
+              <h4 className="text-center font-bold mb-2">{zone}</h4>
+              {/* Column headers */}
+              <div className="grid grid-cols-[repeat(11,auto)] gap-1 mb-2 justify-start">
+                <div className='mx-1'></div>
+                {[...Array(columnsCount)].map((_, i) => (
+                  <button disabled key={i} className="w-6 hw-7 text-center text-xs">{i + 1}</button>
+                ))}
+              </div>
+              {/* Rows */}
+              {zoneRows.map(row => (
+                <div key={row} className="grid grid-cols-[repeat(11,auto)] gap-1 items-center mb-2 ml-1 justify-start">
+                  <div className="text-xs text-center font-semibold">{row}</div>
+                  {zoneSeats
+                    .filter(seat => seat.row === row)
+                    .map(seat => (
+                      <button
+                        key={`${seat.row}${seat.column}`}
+                        type="button"
+                        className={`w-6 h-6 text-xs rounded ${seat.zone === "VIP"
+                          ? "bg-purple-600"
+                          : seat.zone === "General A"
+                            ? "bg-orange-500"
+                            : "bg-red-600"
+                          } cursor-default`}
+                        disabled
+                      >
+                        {seat.column}
+                      </button>
+                    ))}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
-    <form className="event-form" onSubmit={handleSubmit}>
-      <div className="form-group">
-        <label htmlFor="title">Título del Evento</label>
-        <input
-          type="text"
-          id="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-        />
-      </div>
-      <div className="form-group">
-        <label htmlFor="description">Descripción</label>
-        <textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          required
-        />
-      </div>
-      <div className={`form-group ${highlightedField === 'date' ? 'highlight' : ''}`}>
-        <label htmlFor="date">Fecha</label>
-        <input
-          type="date"
-          id="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          min={today}
-          required
-        />
-      </div>
-      <div className="form-group">
-        <label htmlFor="time">Hora</label>
-        <input
-          type="time"
-          id="time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          required
-        />
-      </div>
-      <div className={`form-group ${highlightedField === 'totalSeats' ? 'highlight' : ''}`}>
-        <label htmlFor="totalSeats">Capacidad de Asientos</label>
-        <input
-          type="number"
-          id="totalSeats"
-          value={totalSeats}
-          onChange={handleNumberChange(setTotalSeats)}
-          required
-        />
-      </div>
-      <div className="form-group seat-group">
-        <label>VIP</label>
-        <div className="seat-inputs">
-          <input
-            type="number"
-            id="prices.vip"
-            name="vip"
-            value={prices.vip}
-            onChange={handlePriceChange}
-            min="0"
-            placeholder="Precio VIP"
-            required
-          />
-          <input
-            type="number"
-            id="quantities.vip"
-            name="vip"
-            value={quantities.vip === 0 ? '' : quantities.vip}
-            onChange={handleQuantityChange}
-            min="0"
-            placeholder="Cantidad VIP"
-            required
-          />
+    <div
+      className="py-16 px-4 flex justify-center items-start min-h-screen bg-cover bg-center"
+      style={{
+        backgroundImage: `url('https://images.unsplash.com/photo-1655694775188-361234f2f5ed?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')`,
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-6xl bg-black/70 backdrop-blur-lg rounded-2xl shadow-lg p-8 space-y-8"
+      >
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-extrabold text-white mb-2">Crear Nuevo Evento</h2>
+          <p className="text-gray-400 max-w-xl mx-auto">
+            Completa la información para que tu evento destaque y tus asistentes tengan la mejor experiencia.
+          </p>
         </div>
-      </div>
-      <div className="form-group seat-group">
-        <label>General A</label>
-        <div className="seat-inputs">
-          <input
-            type="number"
-            id="prices.generalA"
-            name="generalA"
-            value={prices.generalA}
-            onChange={handlePriceChange}
-            min="0"
-            placeholder="Precio General A"
-            required
-          />
-          <input
-            type="number"
-            id="quantities.generalA"
-            name="generalA"
-            value={quantities.generalA === 0 ? '' : quantities.generalA}
-            onChange={handleQuantityChange}
-            min="0"
-            placeholder="Cantidad General A"
-            required
-          />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Left Column */}
+          <div className="space-y-6">
+            <div>
+              <label htmlFor="title" className="block text-lg font-medium text-gray-300 mb-2">
+                Título del Evento
+              </label>
+              <input
+                type="text"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                placeholder="Ej. Concierto de Verano"
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="description" className="block text-lg font-medium text-gray-300 mb-2">
+                Descripción
+              </label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                required
+                placeholder="Describe la experiencia..."
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="date" className="block text-lg font-medium text-gray-300 mb-2">
+                Fecha del Evento
+              </label>
+              <input
+                type="date"
+                id="date"
+                value={date}
+                min={today}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="time" className="block text-lg font-medium text-gray-300 mb-2">
+                Hora de Inicio
+              </label>
+              <input
+                type="time"
+                id="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="location" className="block text-lg font-medium text-gray-300 mb-2">
+                Lugar del Evento
+              </label>
+              <select
+                id="location"
+                value={location}
+                onChange={handleLocationChange}
+                required
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
+              >
+                <option value="">Seleccionar Lugar</option>
+                {LOCATIONS.map(loc => (
+                  <option key={loc.name} value={loc.name}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Seat map display */}
+            {seatMap.length > 0 && (
+              <SeatGrid seats={seatMap} toggleSeat={toggleSeat} />
+            )}
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-6">
+            <div>
+              <label className="block text-lg font-medium text-gray-300 mb-2">
+                Capacidad Total
+              </label>
+              <input
+                type="number"
+                value={totalSeats}
+                readOnly
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
+              />
+            </div>
+
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-white">Configuración de Boletos</h3>
+
+              {["vip", "generalA", "generalB"].map(type => (
+                <div key={type}>
+                  <label className="block text-lg font-semibold text-gray-300 mb-2">
+                    {type === "vip" ? "VIP" : type === "generalA" ? "General A" : "General B"}
+                  </label>
+                  <div className="flex flex-col gap-4">
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">$</span>
+                      <input
+                        type="number"
+                        name={type}
+                        value={prices[type]}
+                        onChange={handlePriceChange}
+                        placeholder={`Precio ${type}`}
+                        min="0"
+                        required
+                        className="w-full pl-8 pr-4 py-3 rounded-2xl bg-black text-white border border-neutral-700"
+                      />
+                    </div>
+                    <input
+                      type="number"
+                      name={type}
+                      value={quantities[type]}
+                      readOnly
+                      className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-700"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Imagen */}
+            <div>
+              <label htmlFor="image" className="block text-lg font-medium text-gray-300 mb-1">
+                Imagen del Evento
+              </label>
+              <input
+                type="file"
+                id="image"
+                accept="image/*"
+                onChange={handleImageChange}
+                required
+                className="w-full text-gray-300"
+              />
+              {imagePreview && (
+                <img src={imagePreview} alt="Vista previa" className="mt-4 rounded-lg w-full h-auto object-cover" />
+              )}
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                id="resellable"
+                checked={resellable}
+                onChange={(e) => setResellable(e.target.checked)}
+                className="h-5 w-5 text-gray-500"
+              />
+              <label htmlFor="resellable" className="text-sm text-gray-300">
+                Permitir reventa de boletos
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full text-lg transition duration-300"
+            >
+              Registrar Evento
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="form-group seat-group">
-        <label>General B</label>
-        <div className="seat-inputs">
-          <input
-            type="number"
-            id="prices.generalB"
-            name="generalB"
-            value={prices.generalB}
-            onChange={handlePriceChange}
-            min="0"
-            placeholder="Precio General B"
-            required
-          />
-          <input
-            type="number"
-            id="quantities.generalB"
-            name="generalB"
-            value={quantities.generalB === 0 ? '' : quantities.generalB}
-            onChange={handleQuantityChange}
-            min="0"
-            placeholder="Cantidad General B"
-            required
-          />
-        </div>
-      </div>
-      <div className="form-group">
-        <label htmlFor="category">Categoría</label>
-        <select
-          id="category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          required
-        >
-          <option value="">Seleccionar Categoría</option>
-          <option value="music">Música</option>
-          <option value="entertainment">Entretenimiento</option>
-        </select>
-      </div>
-      <div className="form-group">
-        <label htmlFor="image">Imagen del Evento</label>
-        <input
-          type="file"
-          id="image"
-          accept="image/*"
-          onChange={handleImageChange}
-          required
-        />
-        {imagePreview && (
-          <img src={imagePreview} alt="Vista previa" className="image-preview" />
-        )}
-      </div>
-      <div className="checkbox-group">
-        <input
-          type="checkbox"
-          id="resellable"
-          checked={resellable}
-          onChange={(e) => setResellable(e.target.checked)}
-        />
-        <label htmlFor="resellable">Revendible</label>
-      </div>
-      <button type="submit" className="button">Registrar Evento</button>
-    </form>
+      </form>
+    </div>
   );
 }
 
