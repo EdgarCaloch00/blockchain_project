@@ -13,6 +13,8 @@ import AboutPage from './pages/AboutPage';
 import FaqPage from './pages/FaqPage';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import AdminPage from './pages/AdminPage';
+import Scanner from './pages/Scanner';
 import { Web3Provider } from './pages/web3'; // Import Web3Provider from the src folder
 
 
@@ -36,6 +38,8 @@ function App() {
               <Route path="/register-event" element={<RegisterEventPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/faq" element={<FaqPage />} />
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/scanner" element={<Scanner />} />
             </Routes>
           </div>
           <Footer />

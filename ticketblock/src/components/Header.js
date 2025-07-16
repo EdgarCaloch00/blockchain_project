@@ -70,41 +70,46 @@ export default function Header() {
   );
 
   const accountButton = (
-    <div className="relative">
-      {connected ? (
-        <>
-          <button
-            onClick={toggleAccountMenu}
-            className="px-4 py-1 bg-violet-600 text-white rounded-full hover:bg-violet-700 transition"
-          >
-            Mi Cuenta
-          </button>
-          {accountMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-black text-white rounded shadow-lg p-4 text-xs break-words">
-              <p>{Id}</p>
-              <button
-                onClick={() => {
-                  setConnection(false);
-                  setId(null);
-                  setAccountMenuOpen(false);
-                }}
-                className="mt-2 w-full px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition"
-              >
-                Desconectarse
-              </button>
-            </div>
-          )}
-        </>
-      ) : (
+  <div className="relative">
+    {connected ? (
+      <>
         <button
-          onClick={requestAccount}
-          className="px-4 py-1 bg-violet-500 text-black rounded-full hover:bg-violet-400 transition"
+          onClick={toggleAccountMenu}
+          className="px-4 py-1 bg-violet-600 text-white rounded-full hover:bg-violet-700 transition"
         >
-          Conectarse
+          Mi Cuenta
         </button>
-      )}
-    </div>
-  );
+        {accountMenuOpen && (
+          <div className="absolute right-0 mt-2 w-56 bg-black text-white rounded shadow-lg p-4 text-xs break-words">
+            <p className="break-words mb-2">{Id}</p>
+            <Link
+              to="/admin"
+              onClick={() => setAccountMenuOpen(false)}
+              className="block w-full mb-2 px-3 py-1 bg-gray-800 text-white hover:bg-gray-700 transition text-center rounded-2xl"
+            >
+              Admin
+            </Link>
+            <Link
+              to="/scanner"
+              onClick={() => setAccountMenuOpen(false)}
+              className="block w-full px-3 py-1 bg-gray-800 text-white rounded-2xl hover:bg-gray-700 transition text-center"
+            >
+              Scanner
+            </Link>
+          </div>
+        )}
+      </>
+    ) : (
+      <button
+        onClick={requestAccount}
+        className="px-4 py-1 bg-violet-500 text-black rounded-full hover:bg-violet-400 transition"
+      >
+        Conectarse
+      </button>
+    )}
+  </div>
+);
+
 
   return (
     <header className="fixed top-0 left-0 w-full z-50 bg-black shadow-md">

@@ -1,6 +1,6 @@
 // src/pages/AboutPage.js
 import React from 'react';
-import '../styles/aboutPage.css';
+
 
 const AboutPage = () => {
   return (
