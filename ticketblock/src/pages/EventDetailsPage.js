@@ -62,6 +62,9 @@ function EventDetailsPage() {
           column: ticket.column.toNumber()
         }));
 
+        console.log("Raw ticketsByEvent from contract:", eventTickets);
+
+
         setTickets(parsedTickets);
 
       } catch (error) {
