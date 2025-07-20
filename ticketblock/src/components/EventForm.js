@@ -9,21 +9,20 @@ const LOCATIONS = [
     name: "Estadio GNP",
     totalSeats: 30,
     quantities: { vip: 10, generalA: 10, generalB: 10 },
-    seatsPerRow: { vip: 10, generalA: 10, generalB: 10 }
+    seatsPerRow: { vip: 10, generalA: 10, generalB: 10 } // ✅ valid
   },
   {
     name: "Arena CDMX",
     totalSeats: 40,
     quantities: { vip: 10, generalA: 10, generalB: 20 },
-    seatsPerRow: { vip: 5, generalA: 5, generalB: 10 }
+    seatsPerRow: { vip: 5, generalA: 5, generalB: 10 } // ✅ valid
   },
   {
     name: "Foro Sol",
-    totalSeats: 50,
-    quantities: { vip: 10, generalA: 10, generalB: 15 },
-    seatsPerRow: { vip: 10, generalA: 5, generalB: 6 }
-  }
-];
+    totalSeats: 30,
+    quantities: { vip: 5, generalA: 10, generalB: 15 },
+    seatsPerRow: { vip: 5, generalA: 5, generalB: 5 } // ✅ fixed from original
+  }]
 
 // Dynamic seat map generator:
 const generateDynamicSeatMap = (seatQuantities, seatsPerRowConfig) => {
@@ -32,27 +31,27 @@ const generateDynamicSeatMap = (seatQuantities, seatsPerRowConfig) => {
 
   const seatMap = [];
 
-zones.forEach(zone => {
-  const quantity = seatQuantities[zone];
-  const seatsPerRow = seatsPerRowConfig[zone];
-  if (quantity === 0 || seatsPerRow === 0) return;
+  zones.forEach(zone => {
+    const quantity = seatQuantities[zone];
+    const seatsPerRow = seatsPerRowConfig[zone];
+    if (quantity === 0 || seatsPerRow === 0) return;
 
-  const rowsCount = Math.ceil(quantity / seatsPerRow);
+    const rowsCount = Math.ceil(quantity / seatsPerRow);
 
-  for (let row = 1; row <= rowsCount; row++) {
-    const rowLabel = row.toString(); // Numeric row label
+    for (let row = 1; row <= rowsCount; row++) {
+      const rowLabel = row.toString(); // Numeric row label
 
-    const seatsInThisRow = Math.min(seatsPerRow, quantity - (row - 1) * seatsPerRow);
-    for (let seatNumber = 1; seatNumber <= seatsInThisRow; seatNumber++) {
-      seatMap.push({
-        zone: zoneLabels[zone],
-        row: rowLabel,
-        column: seatNumber,
-        selected: true,
-      });
+      const seatsInThisRow = Math.min(seatsPerRow, quantity - (row - 1) * seatsPerRow);
+      for (let seatNumber = 1; seatNumber <= seatsInThisRow; seatNumber++) {
+        seatMap.push({
+          zone: zoneLabels[zone],
+          row: rowLabel,
+          column: seatNumber,
+          selected: true,
+        });
+      }
     }
-  }
-});
+  });
 
   return seatMap;
 };
@@ -209,10 +208,13 @@ function EventForm() {
         newEventId,
         quantities.vip,
         parseInt(prices.vip, 10),
+        seatsPerRow.vip,
         quantities.generalA,
         parseInt(prices.generalA, 10),
+        seatsPerRow.generalA,
         quantities.generalB,
         parseInt(prices.generalB, 10),
+        seatsPerRow.generalB,
         resellable
       );
 
@@ -225,48 +227,70 @@ function EventForm() {
   };
 
   function SeatGrid({ seats }) {
-    const columnsCount = Math.max(...seats.map(s => s.column));
-    const rows = Array.from(new Set(seats.map(s => s.row))).sort();
+    // Determine max columns needed per zone to help center grids individually
+    const zones = ["VIP", "General A", "General B"];
 
     return (
       <div className="space-y-4 text-white">
-        {["VIP", "General A", "General B"].map(zone => {
-          const zoneSeats = seats.filter(s => s.zone === zone);
+        {zones.map((zone) => {
+          const zoneSeats = seats.filter((s) => s.zone === zone);
           if (zoneSeats.length === 0) return null;
 
-          const zoneRows = Array.from(new Set(zoneSeats.map(s => s.row))).sort();
+          // Seats per row for this zone (dynamic per your seat data)
+          const columnsCount = Math.max(...zoneSeats.map((s) => s.column));
+          const zoneRows = Array.from(new Set(zoneSeats.map((s) => s.row))).sort();
 
           return (
-            <div key={zone} className="border border-gray-600 rounded-lg p-4 flex flex-col">
+            <div key={zone} className="border border-gray-600 rounded-lg flex flex-col items-center">
               <h4 className="text-center font-bold mb-2">{zone}</h4>
+
               {/* Column headers */}
-              <div className="grid grid-cols-[repeat(11,auto)] gap-1 mb-2 justify-start">
-                <div className='mx-1'></div>
+              <div
+                className="grid gap-1 mb-2"
+                style={{ gridTemplateColumns: `auto repeat(${columnsCount}, auto)` }}
+              >
+                <div className="mx-1"></div>
                 {[...Array(columnsCount)].map((_, i) => (
-                  <button disabled key={i} className="w-6 hw-7 text-center text-xs">{i + 1}</button>
+                  <button
+                    disabled
+                    key={i}
+                    className="w-6 h-7 text-center text-xs text-gray-300"
+                  >
+                    {i + 1}
+                  </button>
                 ))}
               </div>
+
               {/* Rows */}
-              {zoneRows.map(row => (
-                <div key={row} className="grid grid-cols-[repeat(11,auto)] gap-1 items-center mb-2 ml-1 justify-start">
+              {zoneRows.map((row) => (
+                <div
+                  key={row}
+                  className="grid gap-1 items-center mb-2"
+                  style={{ gridTemplateColumns: `auto repeat(${columnsCount}, auto)` }}
+                >
                   <div className="text-xs text-center font-semibold">{row}</div>
-                  {zoneSeats
-                    .filter(seat => seat.row === row)
-                    .map(seat => (
+                  {Array.from({ length: columnsCount }, (_, i) => {
+                    const seat = zoneSeats.find(
+                      (s) => s.row === row && s.column === i + 1
+                    );
+                    return seat ? (
                       <button
                         key={`${seat.row}${seat.column}`}
                         type="button"
-                        className={`w-6 h-6 text-xs rounded ${seat.zone === "VIP"
-                          ? "bg-purple-600"
-                          : seat.zone === "General A"
-                            ? "bg-orange-500"
-                            : "bg-red-600"
-                          } cursor-default`}
+                        className={`w-6 h-6 text-xs rounded cursor-default ${seat.zone === "VIP"
+                            ? "bg-purple-600"
+                            : seat.zone === "General A"
+                              ? "bg-orange-500"
+                              : "bg-red-600"
+                          }`}
                         disabled
                       >
                         {seat.column}
                       </button>
-                    ))}
+                    ) : (
+                      <div key={`empty-${row}-${i + 1}`} className="w-6 h-6" />
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -275,6 +299,9 @@ function EventForm() {
       </div>
     );
   }
+
+
+
 
   return (
     <div
