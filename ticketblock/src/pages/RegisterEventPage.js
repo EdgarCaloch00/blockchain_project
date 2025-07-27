@@ -1,7 +1,6 @@
 // src/pages/RegisterEventPage.js
 import React from 'react';
 import EventForm from '../components/EventForm';
-import '../styles/registerEventPage.css';
 
 function RegisterEventPage() {
   const handleEventSubmit = (eventData) => {
@@ -10,7 +9,7 @@ function RegisterEventPage() {
   };
 
   return (
-    <div className="register-event-page">
+    <div className="register-event-page ">
       <h1>Registrar Nuevo Evento</h1>
       <EventForm onSubmit={handleEventSubmit} />
     </div>

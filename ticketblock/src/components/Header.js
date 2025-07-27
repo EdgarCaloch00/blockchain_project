@@ -1,18 +1,25 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaBars, FaTimes } from 'react-icons/fa';
+import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { Web3Context } from '../pages/web3';
 const ethers = require("ethers");
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [dropdownBoletos, setDropdownBoletos] = useState(false);
+  const [dropdownOrganizadores, setDropdownOrganizadores] = useState(false);
   const [connected, setConnection] = useState(false);
   const [Id, setId] = useState(null);
   const provider = useContext(Web3Context);
 
   const toggleMenu = () => setMenuOpen(!menuOpen);
   const toggleAccountMenu = () => setAccountMenuOpen(!accountMenuOpen);
+  const closeDropdowns = () => {
+    setDropdownBoletos(false);
+    setDropdownOrganizadores(false);
+  };
 
   async function requestAccount() {
     if (window.ethereum) {
@@ -60,15 +67,6 @@ export default function Header() {
     checkAccounts();
   }, []);
 
-  const navLinks = (
-    <>
-      <Link to="/" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Inicio</Link>
-      <Link to="/myevents" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Mis Compras</Link>
-      <Link to="/register-event" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Crear Evento</Link>
-        <Link to="/events/music" onClick={menuOpen ? toggleMenu : undefined} className="block text-lg text-white hover:text-violet-400 transition font-semibold">Mis Eventos</Link>
-    </>
-  );
-
   const accountButton = (
     <div className="relative">
       {connected ? (
@@ -80,7 +78,7 @@ export default function Header() {
             Mi Cuenta
           </button>
           {accountMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-black text-white rounded shadow-lg p-4 text-xs break-words">
+            <div className="absolute right-0 mt-2 w-56 bg-black text-white rounded shadow-lg p-4 text-xs break-words z-50">
               <p>{Id}</p>
               <button
                 onClick={() => {
@@ -110,28 +108,69 @@ export default function Header() {
     <header className="fixed top-0 left-0 w-full z-50 bg-black shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
           <h1 className="text-2xl font-extrabold tracking-wide text-white">
-            <Link to="/" className="hover:text-violet-400 transition">TicketBlock</Link>
+            <Link to="/" className="hover:text-violet-400 transition" onClick={closeDropdowns}>TicketBlock</Link>
           </h1>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center space-x-6">
-            {navLinks}
+            <Link to="/" className="text-white text-lg font-semibold hover:text-violet-400 transition" onClick={closeDropdowns}>Inicio</Link>
+
+            {/* Dropdown: Boletos */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setDropdownBoletos(!dropdownBoletos);
+                  setDropdownOrganizadores(false);
+                }}
+                className="flex items-center gap-1 text-white text-lg font-semibold hover:text-violet-400 transition"
+              >
+                Entradas {dropdownBoletos ? <FiChevronUp /> : <FiChevronDown />}
+              </button>
+              <div
+                className={`absolute bg-zinc-900 rounded shadow-md z-50 w-48 py-2 mt-2 transition-all duration-200 ${
+                  dropdownBoletos ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-2 invisible'
+                }`}
+              >
+                <Link to="/events" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Comprar boletos</Link>
+                <Link to="/myevents" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Mis entradas</Link>
+              </div>
+            </div>
+
+            {/* Dropdown: Organizadores */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setDropdownOrganizadores(!dropdownOrganizadores);
+                  setDropdownBoletos(false);
+                }}
+                className="flex items-center gap-1 text-white text-lg font-semibold hover:text-violet-400 transition"
+              >
+                Backstage {dropdownOrganizadores ? <FiChevronUp /> : <FiChevronDown />}
+              </button>
+              <div
+                className={`absolute bg-zinc-900 rounded shadow-md z-50 w-56 py-2 mt-2 transition-all duration-200 ${
+                  dropdownOrganizadores ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-2 invisible'
+                }`}
+              >
+                <Link to="/register-event" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Publicar evento</Link>
+                <Link to="/myevents" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Mis eventos</Link>
+                <Link to="/scannerfront" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Lector QR</Link>
+              </div>
+            </div>
+            <Link to="/" className="text-white text-lg font-semibold hover:text-violet-400 transition" onClick={closeDropdowns}>Soporte</Link>
+
             {accountButton}
           </nav>
 
           {/* Mobile toggle */}
-          <button
-            onClick={toggleMenu}
-            className="md:hidden text-white text-2xl"
-          >
+          <button onClick={toggleMenu} className="md:hidden text-white text-2xl">
             <FaBars />
           </button>
         </div>
       </div>
 
-      {/* Menú lateral móvil */}
+      {/* Mobile sidebar */}
       <div
         className={`fixed top-0 right-0 h-full w-2/3 bg-black transform ${
           menuOpen ? 'translate-x-0' : 'translate-x-full'
@@ -145,8 +184,18 @@ export default function Header() {
         </div>
 
         <nav className="flex flex-col p-6 space-y-4">
-          {navLinks}
-          <div className="mt-4">{accountButton}</div>
+          <Link to="/" className="text-white text-lg hover:text-violet-400" onClick={toggleMenu}>Inicio</Link>
+
+          <p className="text-white font-semibold">Entradas</p>
+          <Link to="/events" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Comprar boletos</Link>
+          <Link to="/mytickets" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Mis entradas</Link>
+
+          <p className="mt-4 text-white font-semibold">Backstage</p>
+          <Link to="/register-event" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Publicar evento </Link>
+          <Link to="/myevents" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Mis eventos</Link>
+          <Link to="/scanner" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Lector QR</Link>
+
+          <div className="mt-6">{accountButton}</div>
         </nav>
       </div>
     </header>

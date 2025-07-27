@@ -1,8 +1,11 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Web3Context } from '../pages/web3';
+import { FiCalendar, FiClock } from "react-icons/fi";
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
+
+
 
 const LOCATIONS = [
   {
@@ -60,6 +63,9 @@ function EventForm() {
   const [eventsContract, setEventsContract] = useState(null);
   const [connectedContract, setConnectedContract] = useState(null);
   const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
+
 
   const provider = useContext(Web3Context);
 
@@ -164,67 +170,73 @@ function EventForm() {
     setHighlightedField('');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!eventsContract || isSubmitting) return;
+  const handleSubmit = () => {
+  setShowConfirmation(true);
+};
 
-    setIsSubmitting(true);
+  const confirmSubmit = async () => {
+  if (!eventsContract || isSubmitting) return;
 
-    const currentDate = new Date();
-    const eventDate = new Date(date);
-    const totalTickets = quantities.vip + quantities.generalA + quantities.generalB;
+  setShowConfirmation(false);
+  setShowLoader(true);
+  setIsSubmitting(true);
 
-    if (eventDate < currentDate.setHours(0, 0, 0, 0)) {
-      alert('La fecha del evento no puede ser en el pasado.');
-      setHighlightedField('date');
-      setIsSubmitting(false);
-      return;
-    }
+  const currentDate = new Date();
+  const eventDate = new Date(date);
+  const totalTickets = quantities.vip + quantities.generalA + quantities.generalB;
 
-    if (totalTickets > totalSeats) {
-      alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
-      setHighlightedField('totalSeats');
-      setIsSubmitting(false);
-      return;
-    }
+  if (eventDate < currentDate.setHours(0, 0, 0, 0)) {
+    alert('La fecha del evento no puede ser en el pasado.');
+    setHighlightedField('date');
+    setIsSubmitting(false);
+    setShowLoader(false);
+    return;
+  }
 
-    try {
-      await connectedContract.createEvent(
-        title,
-        description,
-        category,
-        location,
-        Math.floor(eventDate.getTime() / 1000)
-      );
+  if (totalTickets > totalSeats) {
+    alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
+    setHighlightedField('totalSeats');
+    setIsSubmitting(false);
+    setShowLoader(false);
+    return;
+  }
 
-      alert("¡Evento creado con éxito!");
+  try {
+    await connectedContract.createEvent(
+      title,
+      description,
+      category,
+      location,
+      Math.floor(eventDate.getTime() / 1000)
+    );
 
-      const totalEvents = await eventsContract.getEventsCount();
-      const newEventId = totalEvents.toNumber() - 1;
+    const totalEvents = await eventsContract.getEventsCount();
+    const newEventId = totalEvents.toNumber() - 1;
 
-      // Note: Order of arguments adapted to your TicketFactory:
-      // (eventId, vipQty, vipPrice, generalAQty, generalAPrice, generalBQty, generalBPrice, resellable)
-      await ticketFactoryContract.generateEventTickets(
-        newEventId,
-        quantities.vip,
-        parseInt(prices.vip, 10),
-        seatsPerRow.vip,
-        quantities.generalA,
-        parseInt(prices.generalA, 10),
-        seatsPerRow.generalA,
-        quantities.generalB,
-        parseInt(prices.generalB, 10),
-        seatsPerRow.generalB,
-        resellable
-      );
+    await ticketFactoryContract.generateEventTickets(
+      newEventId,
+      quantities.vip,
+      parseInt(prices.vip, 10),
+      seatsPerRow.vip,
+      quantities.generalA,
+      parseInt(prices.generalA, 10),
+      seatsPerRow.generalA,
+      quantities.generalB,
+      parseInt(prices.generalB, 10),
+      seatsPerRow.generalB,
+      resellable
+    );
 
-      window.location.reload();
+    alert("¡Evento creado con éxito!");
+    window.location.reload();
 
-    } catch (error) {
-      console.error('Error adding event:', error);
-      setIsSubmitting(false);
-    }
-  };
+  } catch (error) {
+    console.error('Error al crear el evento:', error);
+  } finally {
+    setIsSubmitting(false);
+    setShowLoader(false);
+  }
+};
 
   function SeatGrid({ seats }) {
     // Determine max columns needed per zone to help center grids individually
@@ -299,9 +311,7 @@ function EventForm() {
       </div>
     );
   }
-
-
-
+  
 
   return (
     <div
@@ -311,9 +321,12 @@ function EventForm() {
       }}
     >
       <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-6xl bg-black/70 backdrop-blur-lg rounded-2xl shadow-lg p-8 space-y-8"
-      >
+         onSubmit={(e) => {
+        e.preventDefault();
+        handleSubmit();
+      }}
+      className="w-full max-w-6xl bg-black/70 backdrop-blur-lg rounded-2xl shadow-lg p-8 space-y-8"
+    >
         {/* Header */}
         <div className="text-center mb-8">
           <h2 className="text-3xl font-extrabold text-white mb-2">Crear Nuevo Evento</h2>
@@ -355,34 +368,51 @@ function EventForm() {
               />
             </div>
 
-            <div>
-              <label htmlFor="date" className="block text-lg font-medium text-gray-300 mb-2">
-                Fecha del Evento
-              </label>
-              <input
-                type="date"
-                id="date"
-                value={date}
-                min={today}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
-              />
-            </div>
+            {/* Fecha */}
+<div className="relative">
+  <label htmlFor="date" className="block text-lg font-medium text-gray-300 mb-2">
+    Fecha del Evento
+  </label>
+  <div className="relative">
+    <FiCalendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white opacity-70 pointer-events-none z-10" />
+    <input
+      type="date"
+      id="date"
+      value={date}
+      min={today}
+      onChange={(e) => setDate(e.target.value)}
+      required
+      className="w-full pl-12 pr-4 py-3 rounded-2xl bg-black text-white border border-neutral-800 appearance-none relative z-0"
+      style={{
+        colorScheme: 'dark'
+      }}
+    />
+  </div>
+</div>
 
-            <div>
-              <label htmlFor="time" className="block text-lg font-medium text-gray-300 mb-2">
-                Hora de Inicio
-              </label>
-              <input
-                type="time"
-                id="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
-              />
-            </div>
+
+{/* Hora */}
+<div className="relative">
+  <label htmlFor="time" className="block text-lg font-medium text-gray-300 mb-2">
+    Hora de Inicio
+  </label>
+  <div className="relative">
+    <FiClock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white opacity-70 pointer-events-none z-10" />
+    <input
+      type="time"
+      id="time"
+      value={time}
+      onChange={(e) => setTime(e.target.value)}
+      required
+      className="w-full pl-12 pr-4 py-3 rounded-2xl bg-black text-white border border-neutral-800 appearance-none relative z-0"
+      style={{
+        colorScheme: 'dark'
+      }}
+    />
+  </div>
+</div>
+
+
 
             <div>
               <label htmlFor="location" className="block text-lg font-medium text-gray-300 mb-2">
@@ -488,16 +518,79 @@ function EventForm() {
             </div>
 
             <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full text-lg transition duration-300"
-            >
-              Registrar Evento
-            </button>
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full text-lg transition duration-300"
+      >
+        Registrar Evento
+      </button>
           </div>
         </div>
       </form>
+      {/* Modal de confirmación */}
+    {showConfirmation && (
+  <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4">
+    <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl w-full max-w-xl space-y-6 shadow-xl overflow-y-auto max-h-[90vh]">
+      <h3 className="text-2xl font-bold text-center text-black dark:text-white">¿Confirmar creación del evento?</h3>
+      <p className="text-gray-700 dark:text-gray-300 text-center">Revisa los detalles antes de continuar:</p>
+
+      <div className="space-y-3 text-sm text-gray-800 dark:text-gray-200">
+        <p><strong>Título:</strong> {title}</p>
+        <p><strong>Descripción:</strong> {description}</p>
+        <p><strong>Fecha:</strong> {date}</p>
+        <p><strong>Hora:</strong> {time}</p>
+        <p><strong>Lugar:</strong> {location}</p>
+        <p><strong>Capacidad Total:</strong> {totalSeats}</p>
+
+        <div>
+          <strong>Precios por zona:</strong>
+          <ul className="pl-4 list-disc">
+            {Object.entries(prices).map(([zone, price]) => (
+              <li key={zone}>
+                {zone === "vip" ? "VIP" : zone === "generalA" ? "General A" : "General B"}: ${price} MXN ({quantities[zone]} boletos)
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p><strong>Reventa permitida:</strong> {resellable ? "Sí" : "No"}</p>
+
+        {imagePreview && (
+          <div className="mt-4">
+            <strong>Imagen seleccionada:</strong>
+            <img src={imagePreview} alt="Vista previa" className="mt-2 w-full h-auto rounded-xl border border-neutral-700" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-center gap-4 pt-4">
+        <button
+          onClick={() => setShowConfirmation(false)}
+          className="px-5 py-2 bg-gray-300 hover:bg-gray-400 text-black font-medium rounded-xl"
+        >
+          Seguir editando
+        </button>
+        <button
+          onClick={confirmSubmit}
+          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl"
+        >
+          Crear Evento
+        </button>
+      </div>
     </div>
+  </div>
+)}
+
+
+    {/* Loader */}
+    {showLoader && (
+      <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex flex-col items-center justify-center text-white">
+        <div className="animate-spin rounded-full h-24 w-24 border-8 border-blue-500 border-t-transparent mb-4"></div>
+        <p className="text-lg">Registrando evento...</p>
+      </div>
+    )}
+  </div>
+    
   );
 }
 
