@@ -8,10 +8,12 @@ contract EventTicketNFT is ERC721URIStorage {
 
     constructor(string memory name, string memory symbol) ERC721(name, symbol) {}
 
-    function mintTicket(address to, string memory tokenURI) external {
+    // ✅ Return tokenId so TicketFactory can store it
+    function mintTicket(address to, string memory tokenURI) external returns (uint256) {
         uint256 tokenId = nextTokenId;
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, tokenURI);
         nextTokenId++;
+        return tokenId; // important for TicketFactory
     }
 }

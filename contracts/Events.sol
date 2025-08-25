@@ -14,6 +14,7 @@ contract Events {
         uint256 date; // Unix timestamp
         uint256 ticketsSold;
         bool isActive;
+        string imageUrl; // Added to store IPFS/image URL
     }
 
     // Mapping from eventId to event details
@@ -29,7 +30,12 @@ contract Events {
     TicketFactory public ticketFactory;
 
     // Event emitted when a new event is created
-    event EventCreated(uint256 eventId, string title, string place);
+    event EventCreated(
+        uint256 eventId,
+        string title,
+        string place,
+        string imageUrl
+    );
 
     // Constructor to initialize TicketFactory address
     constructor(address _ticketFactoryAddress) {
@@ -42,7 +48,8 @@ contract Events {
         string memory _description,
         string memory _category,
         string memory _place,
-        uint256 _eventDate
+        uint256 _eventDate,
+        string memory _imageUrl
     ) external {
         uint256 eventId = totalEvents;
 
@@ -54,13 +61,14 @@ contract Events {
             place: _place,
             date: _eventDate,
             ticketsSold: 0,
-            isActive: true
+            isActive: true,
+            imageUrl: _imageUrl
         });
 
         eventIds.push(eventId);
         totalEvents++;
 
-        emit EventCreated(eventId, _title, _place);
+        emit EventCreated(eventId, _title, _place, _imageUrl);
     }
 
     // Return all created events

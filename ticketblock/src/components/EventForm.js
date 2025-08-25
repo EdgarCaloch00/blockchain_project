@@ -1,8 +1,11 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import { Web3Context } from '../pages/web3';
+import { FiCalendar, FiClock } from "react-icons/fi";
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
+
+
 
 const LOCATIONS = [
   {
@@ -57,33 +60,30 @@ const generateDynamicSeatMap = (seatQuantities, seatsPerRowConfig) => {
 };
 
 function EventForm() {
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [eventsContract, setEventsContract] = useState(null);
-  const [connectedContract, setConnectedContract] = useState(null);
   const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
-
-  const provider = useContext(Web3Context);
+  const [showLoader, setShowLoader] = useState(false);
+  const { provider, signer, account } = useContext(Web3Context);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!provider || !window.ethereum) return;
+      if (!provider || !signer || !window.ethereum) return;
 
       try {
-        const networkId = 5777;
+        const networkId = 1337;
 
         const eventContractAddress = EventsABI.networks[networkId].address;
         const eventsContractABI = EventsABI.abi;
-        const eventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, provider);
+        // Create contract connected to signer directly
+        const connectedEventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, signer);
 
         const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId].address;
         const ticketFactoryContractABI = TicketFactoryABI.abi;
-        const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, provider);
+        const connectedTicketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, signer);
 
-        const signer = await provider.getSigner();
-        const connectedEventsContract = eventsContract.connect(signer);
-        const connectedTicketFactoryContract = ticketFactoryContract.connect(signer);
-
-        setConnectedContract(connectedEventsContract);
-        setEventsContract(eventsContract);
+        // Store contracts connected to signer so you can call write methods directly
+        setEventsContract(connectedEventsContract);
         setTicketFactoryContract(connectedTicketFactoryContract);
 
       } catch (error) {
@@ -92,7 +92,7 @@ function EventForm() {
     };
 
     fetchData();
-  }, [provider]);
+  }, [provider, signer]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -115,6 +115,26 @@ function EventForm() {
 
   useEffect(() => {
     setToday(new Date().toISOString().split('T')[0]);
+  }, []);
+
+  const [ethRate, setEthRate] = useState(null);
+  // Ref to ensure ETH rate fetch only once per mount/session
+  const fetchedEthRate = useRef(false);
+  useEffect(() => {
+    if (fetchedEthRate.current) return;
+    fetchedEthRate.current = true;
+
+    async function fetchEthRate() {
+      try {
+        const res = await fetch('http://localhost:5000/api/eth-rate');
+        if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
+        const data = await res.json();
+        setEthRate(data.ethereum.mxn);
+      } catch (err) {
+        console.error("Failed to fetch ETH rate:", err);
+      }
+    }
+    fetchEthRate();
   }, []);
 
   const handleLocationChange = (e) => {
@@ -164,10 +184,15 @@ function EventForm() {
     setHighlightedField('');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = () => {
+    setShowConfirmation(true);
+  };
+
+  const confirmSubmit = async () => {
     if (!eventsContract || isSubmitting) return;
 
+    setShowConfirmation(false);
+    setShowLoader(true);
     setIsSubmitting(true);
 
     const currentDate = new Date();
@@ -178,6 +203,7 @@ function EventForm() {
       alert('La fecha del evento no puede ser en el pasado.');
       setHighlightedField('date');
       setIsSubmitting(false);
+      setShowLoader(false);
       return;
     }
 
@@ -185,46 +211,78 @@ function EventForm() {
       alert('La suma de boletos no puede ser mayor que la capacidad de asientos del recinto.');
       setHighlightedField('totalSeats');
       setIsSubmitting(false);
+      setShowLoader(false);
       return;
     }
 
     try {
-      await connectedContract.createEvent(
+      // 1️⃣ Upload image if available
+      let imageUrl = "";
+      if (image) {
+        // Convert image file to Base64
+        const reader = new FileReader();
+        const imageBase64 = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result); // full Data URL
+          reader.onerror = reject;
+          reader.readAsDataURL(image);
+        });
+
+
+        // Upload to backend
+        const uploadResponse = await fetch('http://localhost:5000/api/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64 })
+        });
+        const uploadData = await uploadResponse.json();
+        imageUrl = uploadData.imageUrl;
+        console.log("Uploaded image URL:", imageUrl);
+      }
+
+      // 2️⃣ Create the event on blockchain with image URL
+      await eventsContract.createEvent(
         title,
         description,
         category,
         location,
-        Math.floor(eventDate.getTime() / 1000)
+        Math.floor(eventDate.getTime() / 1000),
+        imageUrl // Pass image URL here
       );
 
-      alert("¡Evento creado con éxito!");
-
+      // 3️⃣ Get new event ID
       const totalEvents = await eventsContract.getEventsCount();
-      const newEventId = totalEvents.toNumber() - 1;
+      const newEventId = totalEvents.toNumber();
 
-      // Note: Order of arguments adapted to your TicketFactory:
-      // (eventId, vipQty, vipPrice, generalAQty, generalAPrice, generalBQty, generalBPrice, resellable)
+      // 4️⃣ Generate tickets
+      const vipPriceEth = (prices.vip / ethRate).toString();
+      const generalAPriceEth = (prices.generalA / ethRate).toString();
+      const generalBPriceEth = (prices.generalB / ethRate).toString();
+
       await ticketFactoryContract.generateEventTickets(
         newEventId,
         quantities.vip,
-        parseInt(prices.vip, 10),
+        ethers.utils.parseEther(vipPriceEth),
         seatsPerRow.vip,
         quantities.generalA,
-        parseInt(prices.generalA, 10),
+        ethers.utils.parseEther(generalAPriceEth),
         seatsPerRow.generalA,
         quantities.generalB,
-        parseInt(prices.generalB, 10),
+        ethers.utils.parseEther(generalBPriceEth),
         seatsPerRow.generalB,
         resellable
       );
 
+      alert("¡Evento creado con éxito!");
       window.location.reload();
 
     } catch (error) {
-      console.error('Error adding event:', error);
+      console.error('Error al crear el evento:', error);
+    } finally {
       setIsSubmitting(false);
+      setShowLoader(false);
     }
   };
+
 
   function SeatGrid({ seats }) {
     // Determine max columns needed per zone to help center grids individually
@@ -278,10 +336,10 @@ function EventForm() {
                         key={`${seat.row}${seat.column}`}
                         type="button"
                         className={`w-6 h-6 text-xs rounded cursor-default ${seat.zone === "VIP"
-                            ? "bg-purple-600"
-                            : seat.zone === "General A"
-                              ? "bg-orange-500"
-                              : "bg-red-600"
+                          ? "bg-purple-600"
+                          : seat.zone === "General A"
+                            ? "bg-orange-500"
+                            : "bg-red-600"
                           }`}
                         disabled
                       >
@@ -301,8 +359,6 @@ function EventForm() {
   }
 
 
-
-
   return (
     <div
       className="py-16 px-4 flex justify-center items-start min-h-screen bg-cover bg-center"
@@ -311,7 +367,10 @@ function EventForm() {
       }}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
         className="w-full max-w-6xl bg-black/70 backdrop-blur-lg rounded-2xl shadow-lg p-8 space-y-8"
       >
         {/* Header */}
@@ -355,34 +414,51 @@ function EventForm() {
               />
             </div>
 
-            <div>
+            {/* Fecha */}
+            <div className="relative">
               <label htmlFor="date" className="block text-lg font-medium text-gray-300 mb-2">
                 Fecha del Evento
               </label>
-              <input
-                type="date"
-                id="date"
-                value={date}
-                min={today}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
-              />
+              <div className="relative">
+                <FiCalendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white opacity-70 pointer-events-none z-10" />
+                <input
+                  type="date"
+                  id="date"
+                  value={date}
+                  min={today}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  className="w-full pl-12 pr-4 py-3 rounded-2xl bg-black text-white border border-neutral-800 appearance-none relative z-0"
+                  style={{
+                    colorScheme: 'dark'
+                  }}
+                />
+              </div>
             </div>
 
-            <div>
+
+            {/* Hora */}
+            <div className="relative">
               <label htmlFor="time" className="block text-lg font-medium text-gray-300 mb-2">
                 Hora de Inicio
               </label>
-              <input
-                type="time"
-                id="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800"
-              />
+              <div className="relative">
+                <FiClock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white opacity-70 pointer-events-none z-10" />
+                <input
+                  type="time"
+                  id="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  required
+                  className="w-full pl-12 pr-4 py-3 rounded-2xl bg-black text-white border border-neutral-800 appearance-none relative z-0"
+                  style={{
+                    colorScheme: 'dark'
+                  }}
+                />
+              </div>
             </div>
+
+
 
             <div>
               <label htmlFor="location" className="block text-lg font-medium text-gray-300 mb-2">
@@ -425,35 +501,46 @@ function EventForm() {
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-white">Configuración de Boletos</h3>
 
-              {["vip", "generalA", "generalB"].map(type => (
-                <div key={type}>
-                  <label className="block text-lg font-semibold text-gray-300 mb-2">
-                    {type === "vip" ? "VIP" : type === "generalA" ? "General A" : "General B"}
-                  </label>
-                  <div className="flex flex-col gap-4">
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">$</span>
+              {["vip", "generalA", "generalB"].map(type => {
+                const ethValue =
+                  ethRate && prices[type]
+                    ? (prices[type] / ethRate).toFixed(6)
+                    : "—";
+
+                return (
+                  <div key={type}>
+                    <label className="block text-lg font-semibold text-gray-300 mb-2">
+                      {type === "vip" ? "VIP" : type === "generalA" ? "General A" : "General B"}
+                    </label>
+                    <div className="flex flex-col gap-4">
+                      <div className="relative flex items-center gap-3">
+                        <div className="relative flex-1">
+                          <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">$</span>
+                          <input
+                            type="number"
+                            name={type}
+                            value={prices[type]}
+                            onChange={handlePriceChange}
+                            placeholder={`Precio ${type} (MXN)`}
+                            min="0"
+                            required
+                            className="w-full pl-8 pr-4 py-3 rounded-2xl bg-black text-white border border-neutral-700"
+                          />
+                        </div>
+                        <span className="text-gray-400 text-sm whitespace-nowrap">{ethValue} ETH</span>
+                      </div>
+
                       <input
                         type="number"
                         name={type}
-                        value={prices[type]}
-                        onChange={handlePriceChange}
-                        placeholder={`Precio ${type}`}
-                        min="0"
-                        required
-                        className="w-full pl-8 pr-4 py-3 rounded-2xl bg-black text-white border border-neutral-700"
+                        value={quantities[type]}
+                        readOnly
+                        className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-700"
                       />
                     </div>
-                    <input
-                      type="number"
-                      name={type}
-                      value={quantities[type]}
-                      readOnly
-                      className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-700"
-                    />
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Imagen */}
@@ -497,7 +584,70 @@ function EventForm() {
           </div>
         </div>
       </form>
+      {/* Modal de confirmación */}
+      {showConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4">
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl w-full max-w-xl space-y-6 shadow-xl overflow-y-auto max-h-[90vh]">
+            <h3 className="text-2xl font-bold text-center text-black dark:text-white">¿Confirmar creación del evento?</h3>
+            <p className="text-gray-700 dark:text-gray-300 text-center">Revisa los detalles antes de continuar:</p>
+
+            <div className="space-y-3 text-sm text-gray-800 dark:text-gray-200">
+              <p><strong>Título:</strong> {title}</p>
+              <p><strong>Descripción:</strong> {description}</p>
+              <p><strong>Fecha:</strong> {date}</p>
+              <p><strong>Hora:</strong> {time}</p>
+              <p><strong>Lugar:</strong> {location}</p>
+              <p><strong>Capacidad Total:</strong> {totalSeats}</p>
+
+              <div>
+                <strong>Precios por zona:</strong>
+                <ul className="pl-4 list-disc">
+                  {Object.entries(prices).map(([zone, price]) => (
+                    <li key={zone}>
+                      {zone === "vip" ? "VIP" : zone === "generalA" ? "General A" : "General B"}: ${price} MXN ({quantities[zone]} boletos)
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <p><strong>Reventa permitida:</strong> {resellable ? "Sí" : "No"}</p>
+
+              {imagePreview && (
+                <div className="mt-4">
+                  <strong>Imagen seleccionada:</strong>
+                  <img src={imagePreview} alt="Vista previa" className="mt-2 w-full h-auto rounded-xl border border-neutral-700" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-center gap-4 pt-4">
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="px-5 py-2 bg-gray-300 hover:bg-gray-400 text-black font-medium rounded-xl"
+              >
+                Seguir editando
+              </button>
+              <button
+                onClick={confirmSubmit}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl"
+              >
+                Crear Evento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* Loader */}
+      {showLoader && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex flex-col items-center justify-center text-white">
+          <div className="animate-spin rounded-full h-24 w-24 border-8 border-blue-500 border-t-transparent mb-4"></div>
+          <p className="text-lg">Registrando evento...</p>
+        </div>
+      )}
     </div>
+
   );
 }
 

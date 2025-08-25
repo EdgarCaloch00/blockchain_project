@@ -12,7 +12,7 @@ const ethers = require("ethers");
 
 function EventDetailsPage() {
   const { id } = useParams();
-  const provider = useContext(Web3Context);
+  const { provider, signer } = useContext(Web3Context);
   const [eventDetail, setEventDetail] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [showSeatingMap, setShowSeatingMap] = useState(false);
@@ -21,13 +21,18 @@ function EventDetailsPage() {
     const fetchData = async () => {
       if (!provider) return;
 
-      const networkId = 5777; // Change this if needed
+      const networkId = 1337; // Change as needed
 
       try {
-        // 1. Load Events contract
-        const eventContractAddress = EventsABI.networks[networkId].address;
-        const eventsContractABI = EventsABI.abi;
-        const eventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, provider);
+        // Use signer if available, otherwise fallback to provider
+        const eventsContractSignerOrProvider = signer || provider;
+
+        // 1. Load Events contract connected to signer or provider
+        const eventContractAddress = EventsABI.networks[networkId]?.address;
+        if (!eventContractAddress) {
+          throw new Error("Invalid Events contract address for network " + networkId);
+        }
+        const eventsContract = new ethers.Contract(eventContractAddress, EventsABI.abi, eventsContractSignerOrProvider);
 
         // 2. Fetch event detail
         const event = await eventsContract.getEvent(id);
@@ -37,19 +42,23 @@ function EventDetailsPage() {
           description: event.description,
           category: event.category,
           place: event.place,
-          date: new Date(event.date.toNumber() * 1000).toLocaleString(), // convert UNIX timestamp
+          date: new Date(event.date.toNumber() * 1000).toLocaleString(), // UNIX timestamp to string
           ticketsSold: event.ticketsSold.toNumber(),
-          isActive: event.isActive
+          isActive: event.isActive,
+          imageUrl: event.imageUrl,
         });
 
-        // 3. Load TicketFactory contract
-        const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId].address;
-        const ticketFactoryContractABI = TicketFactoryABI.abi;
-        const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, provider);
+        // 3. Load TicketFactory contract connected to signer or provider
+        const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId]?.address;
+        if (!ticketFactoryContractAddress) {
+          throw new Error("Invalid TicketFactory contract address for network " + networkId);
+        }
+        const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, TicketFactoryABI.abi, eventsContractSignerOrProvider);
 
         // 4. Fetch tickets for the event
         const eventTickets = await ticketFactoryContract.getTicketsByEvent(id);
-        const parsedTickets = eventTickets.map((ticket) => ({
+        console.log(eventTickets);
+        const parsedTickets = eventTickets.map(ticket => ({
           eventId: ticket.eventId.toNumber(),
           ticketId: ticket.ticketId.toNumber(),
           price: ethers.utils.formatEther(ticket.price),
@@ -66,15 +75,14 @@ function EventDetailsPage() {
 
 
         setTickets(parsedTickets);
-
       } catch (error) {
-        console.error(error);
+        console.error("Error fetching event detail or tickets:", error);
         setEventDetail({ error: "Evento no existe o error al cargar" });
       }
     };
 
     fetchData();
-  }, [provider, id]);
+  }, [provider, signer, id]);
 
   if (!eventDetail) return <p>Cargando...</p>;
   if (eventDetail.error) return <p>{eventDetail.error}</p>;
@@ -84,9 +92,12 @@ function EventDetailsPage() {
   return (
     <div className="event-detail">
       <h1 className="event-title">{eventDetail.title}</h1>
-      <img src={imagen1} alt={eventDetail.title} className="event-image" />
+      <img
+        src={eventDetail.imageUrl || "https://via.placeholder.com/600x400?text=No+Image"}
+        alt={eventDetail.title}
+        className="event-image"
+      />      
       <p className="event-description">{eventDetail.description}</p>
-      <p className="event-category">Categoría: {eventDetail.category}</p>
       <p className="event-date">Fecha: {eventDetail.date}</p>
       <p className="event-location">Ubicación: {eventDetail.place}</p>
       <p className="event-tickets-sold">Boletos vendidos: {eventDetail.ticketsSold}</p>

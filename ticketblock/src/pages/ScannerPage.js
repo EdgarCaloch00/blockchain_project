@@ -1,62 +1,77 @@
 import React, { useContext, useEffect, useState } from 'react';
-// import { Html5Qrcode } from 'html5-qrcode'; // 👈 Commented out
 import { Web3Context } from '../pages/web3';
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 const ethers = require('ethers');
 
 const ScannerPage = () => {
-    const [eventId, setEventId] = useState('');
-    const [ticketId, setTicketId] = useState('');
+    const { provider, signer, account } = useContext(Web3Context);
+
+    const [scanInput, setScanInput] = useState('');
     const [ticketInfo, setTicketInfo] = useState(null);
     const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
-    const provider = useContext(Web3Context);
+    const [scannedTickets, setScannedTickets] = useState({}); // local scanned tickets
 
-    // Setup contract and signer
     useEffect(() => {
         const setupContract = async () => {
-            if (!provider || !window.ethereum) return;
+            if (!provider || !signer || !account) {
+                console.warn("Web3 context not ready");
+                return;
+            }
 
             try {
-                const signer = provider.getSigner();
+                const networkId = 1337;
+                const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId]?.address;
 
-                // Get wallet address
-                const address = await signer.getAddress();
-                console.log("Connected wallet address:", address);
-                const networkId = 5777;
-                const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId].address;
-                const ticketFactoryContractABI = TicketFactoryABI.abi;
-                const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, provider);
-                const connectedTicketFactoryContract = ticketFactoryContract.connect(signer);
-                setTicketFactoryContract(connectedTicketFactoryContract);
-                console.log('Contract setup complete');
+                if (!ticketFactoryContractAddress) {
+                    console.error(`TicketFactory contract not deployed on network ${networkId}`);
+                    return;
+                }
+
+                const contract = new ethers.Contract(
+                    ticketFactoryContractAddress,
+                    TicketFactoryABI.abi,
+                    signer
+                );
+
+                setTicketFactoryContract(contract);
             } catch (err) {
                 console.error('Error setting up contract:', err);
             }
         };
 
         setupContract();
-    }, [provider]);
+    }, [provider, signer, account]);
 
-    // QR scanner setup
-    useEffect(() => {
-        // QR scanner code commented out
-    }, []);
-
-    const fetchAndValidateTicket = async () => {
-        if (!ticketFactoryContract || !eventId || !ticketId) {
-            alert('Asegúrate de llenar ambos campos: Event ID y Ticket ID.');
-            return;
-        }
+    const handleScanSubmit = async (e) => {
+        e.preventDefault();
 
         try {
-            const ticket = await ticketFactoryContract.getTicket(eventId, ticketId);
+            // Parse JSON input
+            const payload = JSON.parse(scanInput);
+            const { event_id, ticket_id, signature } = payload;
+
+            if (
+                typeof event_id !== "number" ||
+                typeof ticket_id !== "number" ||
+                typeof signature !== "string"
+            ) {
+                alert("Invalid input JSON structure");
+                return;
+            }
+
+            if (!ticketFactoryContract) {
+                alert("Contract not loaded yet. Try again shortly.");
+                return;
+            }
+
+            // Fetch ticket info from contract
+            const ticket = await ticketFactoryContract.getTicketById(event_id, ticket_id);
 
             const formatted = {
                 eventId: ticket.eventId.toString(),
                 ticketId: ticket.ticketId.toString(),
                 ticketType: ticket.ticketType,
                 price: ethers.utils.formatEther(ticket.price),
-                owner: ticket.owner,
                 sold: ticket.sold,
                 scanned: ticket.scanned,
                 row: ticket.row.toString(),
@@ -65,71 +80,72 @@ const ScannerPage = () => {
 
             setTicketInfo(formatted);
 
-            // Validación para el escaneo
+            // Validate if ticket was sold and not scanned yet
             const isValid =
-                ticket.sold &&
-                ticket.owner !== ethers.constants.AddressZero &&
-                !ticket.scanned;
+                ticket.sold && !ticket.scanned;
 
-            if (isValid) {
-                const tx = await ticketFactoryContract.scanTicket(eventId, ticketId, {
-                    gasLimit: 300000, // or higher depending on your contract
-                });
-                await tx.wait();
+            if (!isValid) {
+                alert('❌ Ticket is invalid, not sold, or already scanned');
+                return;
+            }
 
-                alert('✅ Ticket valid and marked as scanned');
-                setTicketInfo({ ...formatted, scanned: true });
-            } else {
-                alert('❌ Ticket is invalid, not sold, or already used');
-            }
-        } catch (error) {
-            console.error('Error fetching or scanning ticket:', error);
-            // If there's a nested revert error message, show that too:
-            if (error.error && error.error.message) {
-                alert(`Blockchain error: ${error.error.message}`);
-            } else {
-                alert(`Error: ${error.message || 'No se pudo obtener o escanear el ticket.'}`);
-            }
+            // Verify signature
+            const hash = ethers.utils.solidityKeccak256(
+                ["uint256", "uint256"],
+                [event_id, ticket_id]
+            );
+
+            const recoveredAddress = ethers.utils.verifyMessage(
+                ethers.utils.arrayify(hash),
+                signature
+            );
+
+            // Mark ticket as scanned on-chain
+            const tx = await ticketFactoryContract.scanTicket(event_id, ticket_id, {
+                gasLimit: 300000,
+            });
+            await tx.wait();
+
+            alert('✅ Ticket valid and marked as scanned on-chain.');
+
+            // Update local scanned state
+            setTicketInfo(prev => ({ ...prev, scanned: true }));
+
+        } catch (err) {
+            alert("Error validating ticket or scanning it");
+            console.error(err);
         }
     };
+
+
 
 
     return (
         <div style={{ textAlign: 'center', paddingTop: '30px' }}>
             <h2>🎫 Ticket Scanner</h2>
 
-            <div id="reader" style={{ width: '320px', margin: 'auto' }}></div>
-
-            <div style={{ marginTop: '30px' }}>
-                <input
-                    type="number"
-                    placeholder="Event ID"
-                    value={eventId}
-                    onChange={(e) => setEventId(e.target.value)}
-                    style={{ marginRight: '10px', padding: '6px' }}
+            <form onSubmit={handleScanSubmit}>
+                <textarea
+                    rows={6}
+                    style={{ width: "100%", fontFamily: "monospace", fontSize: "1rem" }}
+                    placeholder='Paste ticket JSON here: {"event_id":1,"ticket_id":0,"signature":"0x..."}'
+                    value={scanInput}
+                    onChange={(e) => setScanInput(e.target.value)}
                 />
-                <input
-                    type="number"
-                    placeholder="Ticket ID"
-                    value={ticketId}
-                    onChange={(e) => setTicketId(e.target.value)}
-                    style={{ padding: '6px' }}
-                />
-                <br />
                 <button
-                    onClick={fetchAndValidateTicket}
-                    style={{ marginTop: '10px', padding: '8px 20px', cursor: 'pointer' }}
+                    type="submit"
+                    style={{ marginTop: "1rem", padding: '8px 20px', cursor: 'pointer' }}
                 >
-                    Scan Ticket
+                    Verify & Scan Ticket
                 </button>
-            </div>
+            </form>
 
             {ticketInfo && (
                 <div style={{ marginTop: '20px', textAlign: 'left', display: 'inline-block' }}>
                     <h4>🎟️ Ticket Info</h4>
+                    <p><strong>Event ID:</strong> {ticketInfo.eventId}</p>
+                    <p><strong>Ticket ID:</strong> {ticketInfo.ticketId}</p>
                     <p><strong>Type:</strong> {ticketInfo.ticketType}</p>
-                    <p><strong>Price:</strong> {ticketInfo.price} ETH</p>
-                    <p><strong>Owner:</strong> {ticketInfo.owner}</p>
                     <p><strong>Sold:</strong> {ticketInfo.sold ? 'Yes' : 'No'}</p>
                     <p><strong>Scanned:</strong> {ticketInfo.scanned ? 'Yes' : 'No'}</p>
                     <p><strong>Row:</strong> {ticketInfo.row}</p>

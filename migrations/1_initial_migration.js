@@ -3,14 +3,18 @@ const Events = artifacts.require("Events");
 const TicketFactory = artifacts.require("TicketFactory");
 
 module.exports = async function(deployer) {
+  // 1️⃣ Deploy the NFT contract
   await deployer.deploy(EventTicketNFT, "EventTicket", "ETK");
   const eventTicketNFTInstance = await EventTicketNFT.deployed();
 
-  await deployer.deploy(TicketFactory);
+  // 2️⃣ Deploy TicketFactory with NFT address
+  await deployer.deploy(TicketFactory, eventTicketNFTInstance.address);
   const ticketFactoryInstance = await TicketFactory.deployed();
 
+  // 3️⃣ Deploy Events contract with TicketFactory address
   await deployer.deploy(Events, ticketFactoryInstance.address);
-  
-  // If Events or TicketFactory need EventTicketNFT address, you can pass it here
-  // e.g., await ticketFactoryInstance.setNFTAddress(eventTicketNFTInstance.address);
+  const eventsInstance = await Events.deployed();
+
+  // Optional: if TicketFactory needs to know Events address, set it here
+  // await ticketFactoryInstance.setEventsAddress(eventsInstance.address);
 };

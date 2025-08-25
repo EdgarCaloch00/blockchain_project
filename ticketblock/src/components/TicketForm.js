@@ -1,48 +1,66 @@
 // src/components/TicketForm.js
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import '../styles/eventForm.css';
 import { Web3Context } from '../pages/web3';
+import QRCode from 'qrcode';
 const ethers = require("ethers");
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 const EventTicketNFTABI = require('../contractsABI/EventTicketNFT.json');
 
 function TicketForm({ eventDetail, ticket, onSubmit }) {
-  const provider = useContext(Web3Context);
+  const { provider, signer, account } = useContext(Web3Context);
   const [walletAddress, setWalletAddress] = useState(null);
   const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
   const [eventTicketNFTContract, setEventTicketNFTContract] = useState(null);
+  const [ethRateMXN, setEthRateMXN] = useState(null); // ETH -> MXN rate
 
+  // Ref to ensure ETH rate fetch only once per mount/session
+  const fetchedEthRate = useRef(false);
+
+  // Fetch ETH to MXN rate once on mount via your Node.js proxy
+  useEffect(() => {
+    if (fetchedEthRate.current) return;
+    fetchedEthRate.current = true;
+
+    async function fetchEthRate() {
+      try {
+        const res = await fetch('http://localhost:5000/api/eth-rate');
+        if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
+        const data = await res.json();
+        setEthRateMXN(data.ethereum.mxn);
+      } catch (err) {
+        console.error("Failed to fetch ETH rate:", err);
+      }
+    }
+    fetchEthRate();
+  }, []);
 
   useEffect(() => {
     const initialize = async () => {
-      if (!provider || !window.ethereum) {
-        console.error("Provider not found or MetaMask not installed");
+      if (!provider || !signer || !account || !window.ethereum) {
+        console.error("Provider, signer, or account not ready or MetaMask not installed");
         return;
       }
 
       try {
-        const signer = provider.getSigner();
+        setWalletAddress(account);
+        console.log("Connected wallet address:", account);
 
-        // Get wallet address
-        const address = await signer.getAddress();
-        setWalletAddress(address);
-        console.log("Connected wallet address:", address);
+        const networkId = 1337; // Adjust if needed
 
-        // Setup TicketFactory contract
-        const networkId = 5777; // Adjust if needed
+        const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId]?.address;
+        if (!ticketFactoryContractAddress) throw new Error("TicketFactory contract address not found");
 
-        const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId].address;
         const ticketFactoryContractABI = TicketFactoryABI.abi;
-        const ticketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, provider);
-        const connectedTicketFactoryContract = ticketFactoryContract.connect(signer);
-        setTicketFactoryContract(connectedTicketFactoryContract);
+        const ticketFactoryContractInstance = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, signer);
+        setTicketFactoryContract(ticketFactoryContractInstance);
 
-        // Setup EventTicketNFT contract
-        const eventTicketNFTContractAddress = EventTicketNFTABI.networks[networkId].address;
+        const eventTicketNFTContractAddress = EventTicketNFTABI.networks[networkId]?.address;
+        if (!eventTicketNFTContractAddress) throw new Error("EventTicketNFT contract address not found");
+
         const eventTicketNFTContractABI = EventTicketNFTABI.abi;
-        const eventTicketNFTContract = new ethers.Contract(eventTicketNFTContractAddress, eventTicketNFTContractABI, provider);
-        const connectedEventTicketNFTContract = eventTicketNFTContract.connect(signer);
-        setEventTicketNFTContract(connectedEventTicketNFTContract);
+        const eventTicketNFTContractInstance = new ethers.Contract(eventTicketNFTContractAddress, eventTicketNFTContractABI, signer);
+        setEventTicketNFTContract(eventTicketNFTContractInstance);
 
       } catch (error) {
         console.error("Error during initialization:", error.message);
@@ -50,81 +68,101 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
     };
 
     initialize();
-  }, [provider]);
-
+  }, [provider, signer, account]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const metadata = {
-      name: eventDetail.title,
-      description: eventDetail.description,
-      image: "ipfs://bafybeicumcizjwmykcdouhyrrkm7pil3hfpwi3carrplg4rltyegdz3ri4/BulbasaurPhoto.png",
-      attributes: [
-        { trait_type: "eventId", value: eventDetail.eventId }, // lowercase, no spaces
-        { trait_type: "ticketId", value: ticket.ticketId },
-        { trait_type: "ticketType", value: ticket.ticketType },
-        { trait_type: "row", value: ticket.row },
-        { trait_type: "column", value: ticket.column }
-      ]
-    };
-    onSubmit(metadata);
 
     try {
-      // Send metadata to server
-      const response = await fetch('http://localhost:5000/api/metadata', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(metadata)
-      });
+      if (!signer) throw new Error("Signer is not available");
+      if (!ticketFactoryContract) throw new Error("TicketFactory contract not initialized");
 
-      if (!response.ok) {
-        throw new Error(`Server responded with status ${response.status}`);
-      }
-
-      const data = await response.json();
-      const metadataUrl = data.metadataUrl;
-      console.log("Server response:", metadataUrl);
-
-
-      if (!eventTicketNFTContract) {
-        throw new Error("NFT contract not connected");
-      }
-
-      // Call your mint function on the smart contract
-      // Assumes mintTicket(address to, string tokenURI)
-      const signerAddress = await eventTicketNFTContract.signer.getAddress();
-      console.log(signerAddress);
-      const tx = await eventTicketNFTContract.mintTicket(signerAddress, metadataUrl);
-      console.log("Mint transaction sent:", tx.hash);
-
-      // Wait for confirmation
-      await tx.wait();
-      console.log("Mint transaction confirmed!");
-
-      // Buy ticket using correct ticket and event IDs
       const eventId = eventDetail.eventId;
-      const ticketId = ticket.ticketId;
+      const ticketId = ticket.ticketId; // canonical ticketId
 
-      // Convert ticket price to BigNumber (assuming ticket.price is in Wei)
-      const price = ethers.utils.parseEther(ticket.price.toString()); // converts "0.01" ETH to BigNumber in wei
-
-      const buyTx = await ticketFactoryContract.buyTicket(
-        eventId,
-        ticketId,
-        {
-          value: price // send the correct price
-        }
+      // 1️⃣ Generate QR code and upload as before
+      const hash = ethers.utils.solidityKeccak256(
+        ["uint256", "uint256"],
+        [eventId, ticketId]
       );
 
-      await buyTx.wait();
-      console.log("Ticket successfully bought!");
+      const signature = await signer.signMessage(ethers.utils.arrayify(hash));
 
+      const payload = {
+        event_id: eventId,
+        ticket_id: ticketId,
+        signature: signature
+      };
+
+      const qrDataUrl = await QRCode.toDataURL(JSON.stringify(payload));
+
+      const uploadResponse = await fetch('http://localhost:5000/api/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: qrDataUrl })
+      });
+      const uploadData = await uploadResponse.json();
+      const qrImageUrl = uploadData.imageUrl;
+      console.log("QR code image URL:", qrImageUrl);
+
+      const metadata = {
+        name: eventDetail.title,
+        description: eventDetail.description,
+        image: qrImageUrl,
+        attributes: [
+          { trait_type: "eventId", value: eventId },
+          { trait_type: "ticketId", value: ticketId },
+          { trait_type: "ticketType", value: ticket.ticketType },
+          { trait_type: "row", value: ticket.row },
+          { trait_type: "column", value: ticket.column }
+        ]
+      };
+
+      const metaResponse = await fetch('http://localhost:5000/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadata)
+      });
+      const metaData = await metaResponse.json();
+      const metadataUrl = metaData.metadataUrl;
+      console.log("Metadata URL:", metadataUrl);
+
+      // 2️⃣ Mint NFT and get tokenId
+      const signerAddress = await eventTicketNFTContract.signer.getAddress();
+      const mintTx = await eventTicketNFTContract.mintTicket(signerAddress, metadataUrl);
+      const receipt = await mintTx.wait();
+      const mintedTokenId = receipt.events[0].args.tokenId.toNumber();
+      console.log("Minted NFT tokenId:", mintedTokenId);
+
+      // 3️⃣ Buy ticket using canonical ticketId
+      let priceInWei;
+      if (typeof ticket.price === "string") {
+        priceInWei = ethers.utils.parseEther(ticket.price); // ETH string → BigNumber wei
+      } else {
+        priceInWei = ticket.price; // already BigNumber in wei
+      }
+      console.log("Price in wei for purchase:", priceInWei.toString());
+
+      const buyTx = await ticketFactoryContract.buyTicket(eventId, ticketId, { value: priceInWei });
+      await buyTx.wait();
+
+      // 4️⃣ Link NFT tokenId to ticketId in the contract
+      const linkTx = await ticketFactoryContract.setTicketTokenId(eventId, ticketId, mintedTokenId);
+      await linkTx.wait();
+
+      console.log("Ticket successfully bought and NFT linked!");
     } catch (error) {
-      console.error("Error during ticket purchase:", error.message);
+      console.error("Error in ticket purchase flow:", error.message);
     }
   };
+
+
+
+
+  // Calculate MXN price from ETH and rate
+  const priceMXN = ethRateMXN && ticket.price
+    ? (parseFloat(ticket.price) * ethRateMXN).toFixed(2)
+    : null;
 
   return (
     <form className="ticket-form" onSubmit={handleSubmit}>
@@ -133,21 +171,34 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
       <input type="hidden" name="description" value={eventDetail.description} />
       <input type="hidden" name="eventId" value={eventDetail.eventId} />
       <input type="hidden" name="ticketId" value={ticket.ticketId} />
+
       <div>
         <label>Tipo de Boleto: </label>
         <a>{ticket.ticketType}</a>
         <input type="hidden" name="ticketType" value={ticket.ticketType} />
       </div>
+
       <div>
         <label>Fila: </label>
         <a>{ticket.row}</a>
         <input type="hidden" name="row" value={ticket.row} />
       </div>
+
       <div>
         <label>Asiento: </label>
         <a>{ticket.column}</a>
         <input type="hidden" name="column" value={ticket.column} />
       </div>
+
+      <div>
+        <label>Precio: </label>
+        <span>
+          {ticket.price} ETH
+          {priceMXN && ` (≈ $${priceMXN} MXN)`}
+        </span>
+        <input type="hidden" name="price" value={ticket.price} />
+      </div>
+
       <button type="submit">Comprar boleto</button>
     </form>
   );
