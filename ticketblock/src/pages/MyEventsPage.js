@@ -15,7 +15,6 @@ const MyEventsPage = () => {
   const [userAddress, setUserAddress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-
   const navigate = useNavigate();
 
   useEffect(() => {

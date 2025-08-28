@@ -23,6 +23,7 @@ export const Web3Provider = ({ children }) => {
         // Optional: Check chain ID
         if (network.chainId !== 1337) {
           alert("Please switch to the Ganache network in MetaMask (Chain ID 1337).");
+
           return;
         }
 

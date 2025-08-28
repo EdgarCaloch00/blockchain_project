@@ -4,12 +4,6 @@ pragma solidity ^0.8.17;
 import "./EventTicketNFT.sol";
 
 contract TicketFactory {
-    address public owner;
-
-    constructor() {
-        owner = msg.sender;
-    }
-
     struct Item {
         uint256 eventId;
         uint256 ticketId;

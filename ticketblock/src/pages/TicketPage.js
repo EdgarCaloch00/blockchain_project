@@ -44,7 +44,6 @@ const TicketPage = () => {
         const eventsAddress = EventsABI.networks[networkId]?.address;
         const ticketFactoryAddress = TicketFactoryABI.networks[networkId]?.address;
 
-
         if (!ticketNFTAddress || !eventsAddress || !ticketFactoryAddress) {
           console.error("One of the contracts is not deployed in this network:", networkId);
           setLoading(false);

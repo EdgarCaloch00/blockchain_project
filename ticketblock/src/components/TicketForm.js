@@ -6,6 +6,8 @@ import QRCode from 'qrcode';
 const ethers = require("ethers");
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 const EventTicketNFTABI = require('../contractsABI/EventTicketNFT.json');
+const SERVER_URL = process.env.REACT_APP_SERVER_URL;
+console.log("Server URL:", SERVER_URL);
 
 function TicketForm({ eventDetail, ticket, onSubmit }) {
   const { provider, signer, account } = useContext(Web3Context);
@@ -13,8 +15,9 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
   const [ticketFactoryContract, setTicketFactoryContract] = useState(null);
   const [eventTicketNFTContract, setEventTicketNFTContract] = useState(null);
   const [ethRateMXN, setEthRateMXN] = useState(null); // ETH -> MXN rate
-
-  // Ref to ensure ETH rate fetch only once per mount/session
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isBought, setIsBought] = useState(ticket.sold); // ✅ Estado de compra
   const fetchedEthRate = useRef(false);
 
   // Fetch ETH to MXN rate once on mount via your Node.js proxy
@@ -24,7 +27,7 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
 
     async function fetchEthRate() {
       try {
-        const res = await fetch('http://localhost:5000/api/eth-rate');
+        const res = await fetch(`${SERVER_URL}/api/eth-rate`);
         if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
         const data = await res.json();
         setEthRateMXN(data.ethereum.mxn);
@@ -70,10 +73,10 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
     initialize();
   }, [provider, signer, account]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
+  const executePurchase = async () => {
     try {
+      setLoading(true);
+
       if (!signer) throw new Error("Signer is not available");
       if (!ticketFactoryContract) throw new Error("TicketFactory contract not initialized");
 
@@ -96,7 +99,7 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
 
       const qrDataUrl = await QRCode.toDataURL(JSON.stringify(payload));
 
-      const uploadResponse = await fetch('http://localhost:5000/api/upload-image', {
+      const uploadResponse = await fetch(`${SERVER_URL}/api/upload-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: qrDataUrl })
@@ -118,7 +121,7 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
         ]
       };
 
-      const metaResponse = await fetch('http://localhost:5000/api/metadata', {
+      const metaResponse = await fetch(`${SERVER_URL}/api/metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(metadata)
@@ -149,10 +152,13 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
       // 4️⃣ Link NFT tokenId to ticketId in the contract
       const linkTx = await ticketFactoryContract.setTicketTokenId(eventId, ticketId, mintedTokenId);
       await linkTx.wait();
-
-      console.log("Ticket successfully bought and NFT linked!");
+      setIsBought(true); // ✅ Marca el boleto como comprado
+      alert("Ticket comprado exitosamente!");
     } catch (error) {
       console.error("Error in ticket purchase flow:", error.message);
+      setLoading(false);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -164,43 +170,76 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
     ? (parseFloat(ticket.price) * ethRateMXN).toFixed(2)
     : null;
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setShowConfirm(true);
+  };
+
   return (
-    <form className="ticket-form" onSubmit={handleSubmit}>
-      <h3>Reservar Boleto</h3>
-      <input type="hidden" name="title" value={eventDetail.title} />
-      <input type="hidden" name="description" value={eventDetail.description} />
-      <input type="hidden" name="eventId" value={eventDetail.eventId} />
-      <input type="hidden" name="ticketId" value={ticket.ticketId} />
+    <div>
+      <form className="ticket-form" onSubmit={handleSubmit}>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-12 h-12 bg-gray-800 border border-gray-700 flex items-center justify-center rounded-md">
+            <span className="text-base font-semibold text-white text-center">{ticket.row}-{ticket.column}</span>
+          </div>
+          <div>
+            <p className="text-gray-200 font-medium">{ticket.ticketType}</p>
+            <p className="text-gray-400 text-sm">
+              {parseFloat(ticket.price).toFixed(5)} ETH
+              {priceMXN && ` (≈ $${priceMXN} MXN)`}
+            </p>
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={isBought || loading}
+          className={`px-4 py-2 rounded-xl font-semibold w-full transition-transform transform ${isBought
+            ? "bg-green-500 text-white cursor-not-allowed"
+            : "bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105"
+            }`}
+        >
+          {isBought ? "Comprado" : "Comprar boleto"}
+        </button>
+      </form>
 
-      <div>
-        <label>Tipo de Boleto: </label>
-        <a>{ticket.ticketType}</a>
-        <input type="hidden" name="ticketType" value={ticket.ticketType} />
-      </div>
+      {/* Modal de confirmación */}
+      {showConfirm && !isBought && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-900 p-6 rounded-2xl shadow-lg max-w-sm w-full text-center">
+            <h3 className="text-xl font-semibold text-white mb-4">Confirmar Compra</h3>
+            <p className="text-gray-300 mb-6">
+              ¿Deseas comprar el boleto <span className="font-medium">{ticket.ticketType}</span> por <span className="font-medium">
+                {parseFloat(ticket.price).toFixed(5)} ETH{priceMXN && ` (≈ $${priceMXN} MXN)`}
+              </span>?            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={async () => {
+                  setShowConfirm(false);
+                  await executePurchase();
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-transform transform hover:scale-105"
+              >
+                Sí, comprar
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-semibold transition-transform transform hover:scale-105"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div>
-        <label>Fila: </label>
-        <a>{ticket.row}</a>
-        <input type="hidden" name="row" value={ticket.row} />
-      </div>
-
-      <div>
-        <label>Asiento: </label>
-        <a>{ticket.column}</a>
-        <input type="hidden" name="column" value={ticket.column} />
-      </div>
-
-      <div>
-        <label>Precio: </label>
-        <span>
-          {ticket.price} ETH
-          {priceMXN && ` (≈ $${priceMXN} MXN)`}
-        </span>
-        <input type="hidden" name="price" value={ticket.price} />
-      </div>
-
-      <button type="submit">Comprar boleto</button>
-    </form>
+      {/* Loader */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-white mt-4 text-lg font-medium">Espere, comprando ticket...</p>
+        </div>
+      )}
+    </div>
   );
 }
 

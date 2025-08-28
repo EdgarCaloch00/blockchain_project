@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Web3Context } from './web3';
 const ethers = require('ethers');
 const EventsABI = require('../contractsABI/Events.json');
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
+const SERVER_URL = process.env.REACT_APP_SERVER_URL;
 
 const EventsPage = () => {
   const { provider, signer, account } = useContext(Web3Context);
@@ -12,6 +13,28 @@ const EventsPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPlace, setSelectedPlace] = useState("");
+
+  // ETH -> MXN
+  const [ethRateMXN, setEthRateMXN] = useState(null);
+  const fetchedEthRate = useRef(false);
+
+  useEffect(() => {
+    if (fetchedEthRate.current) return;
+    fetchedEthRate.current = true;
+
+    async function fetchEthRate() {
+      try {
+        const res = await fetch(`${SERVER_URL}/api/eth-rate`);
+        if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
+        const data = await res.json();
+        setEthRateMXN(data.ethereum.mxn);
+      } catch (err) {
+        console.error("Failed to fetch ETH rate:", err);
+      }
+    }
+
+    fetchEthRate();
+  }, []);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -33,9 +56,7 @@ const EventsPage = () => {
           return;
         }
 
-        // Read-only contract interaction can use provider
         const eventsContract = new ethers.Contract(eventContractAddress, EventsABI.abi, provider);
-        // Use signer for ticket factory (in case you want to do any state-modifying calls later)
         const ticketFactoryContract = new ethers.Contract(ticketFactoryAddress, TicketFactoryABI.abi, signer);
 
         const rawEvents = await eventsContract.displayEvents();
@@ -58,6 +79,11 @@ const EventsPage = () => {
               console.warn(`Couldn't load tickets for event ${eventId}:`, ticketErr);
             }
 
+            // Convert to MXN if ETH rate available
+            const lowestPriceMXN = lowestPrice && ethRateMXN
+              ? (lowestPrice * ethRateMXN).toFixed(2)
+              : null;
+
             return {
               eventId,
               title: event.title,
@@ -65,7 +91,9 @@ const EventsPage = () => {
               date: new Date(event.date * 1000).toLocaleDateString(),
               time: new Date(event.date * 1000).toLocaleTimeString(),
               availableSeats,
+              category: event.category,
               lowestPrice,
+              lowestPriceMXN,
               imageUrl: event.imageUrl
             };
           })
@@ -80,7 +108,7 @@ const EventsPage = () => {
     };
 
     fetchEvents();
-  }, [provider, signer, account]);
+  }, [provider, signer, account, ethRateMXN]);
 
   if (loading) {
     return (
@@ -90,6 +118,7 @@ const EventsPage = () => {
       </div>
     );
   }
+
   const filteredEvents = events
     .filter((event) =>
       event.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -99,6 +128,7 @@ const EventsPage = () => {
     );
 
   const uniquePlaces = [...new Set(events.map((e) => e.place || "Desconocido"))];
+
   return (
     <div className="pt-20 pb-6 px-6 mx-auto lg:px-16 bg-neutral-950 min-h-screen text-white">
       <button
@@ -147,17 +177,12 @@ const EventsPage = () => {
               availability = "Últimos boletos";
               tagColor = "bg-yellow-500 text-black";
             } else if (event.lowestPrice !== null) {
-              availability = `Desde ${event.lowestPrice} ETH`;
+              availability = `Desde ${event.lowestPrice.toFixed(5)} ETH${event.lowestPriceMXN ? ` (≈ $${event.lowestPriceMXN} MXN)` : ""}`;
               tagColor = "bg-green-600 text-white";
             } else {
               availability = "Boletos disponibles";
               tagColor = "bg-neutral-700 text-white";
             }
-
-            const eventDate = new Date(event.date * 1000);
-            const day = eventDate.getDate().toString().padStart(2, "0");
-            const month = eventDate.toLocaleString("default", { month: "short" });
-            const year = eventDate.getFullYear();
 
             return (
               <Link
@@ -180,7 +205,7 @@ const EventsPage = () => {
                       {event.title}
                     </h2>
                     <p className="text-sm text-neutral-400 mb-1">
-                      {event.time} - {event.place || "No especificado"}
+                      {event.time} - {event.place || event.category}
                     </p>
                     <p className="text-sm text-neutral-300 mb-2">
                       Fecha: {`${event.date}`}

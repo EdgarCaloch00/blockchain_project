@@ -183,7 +183,7 @@ export default function Header() {
               >
                 <Link to="/register-event" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Publicar evento</Link>
                 <Link to="/myevents" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Mis eventos</Link>
-                <Link to="/scannerfront" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Lector QR</Link>
+                <Link to="/scanner" className="block px-4 py-2 text-white hover:bg-violet-600" onClick={closeDropdowns}>Lector QR</Link>
               </div>
             </div>
             <Link to="/" className="text-white text-lg font-semibold hover:text-violet-400 transition" onClick={closeDropdowns}>Soporte</Link>
@@ -215,7 +215,7 @@ export default function Header() {
 
           <p className="text-white font-semibold">Entradas</p>
           <Link to="/events" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Comprar boletos</Link>
-          <Link to="/mytickets" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Mis entradas</Link>
+          <Link to="/myevents" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Mis entradas</Link>
 
           <p className="mt-4 text-white font-semibold">Backstage</p>
           <Link to="/register-event" className="pl-4 text-white hover:text-violet-400" onClick={toggleMenu}>Publicar evento </Link>

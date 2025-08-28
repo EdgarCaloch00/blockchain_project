@@ -1,5 +1,5 @@
 // src/pages/HomePage.js
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import Slider from 'react-slick';
 import { Link } from 'react-router-dom';
 import { Web3Context } from './web3';
@@ -9,13 +9,34 @@ import 'slick-carousel/slick/slick-theme.css';
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
+const SERVER_URL = process.env.REACT_APP_SERVER_URL;
 
 function HomePage() {
   const { provider, signer, account } = useContext(Web3Context);
 
   const [events, setEvents] = useState([]);
+  const [ethRateMXN, setEthRateMXN] = useState(null); // ETH -> MXN rate
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPlace, setSelectedPlace] = useState("");
+  const fetchedEthRate = useRef(false);
+
+  // Fetch ETH to MXN rate once on mount via your Node.js proxy
+  useEffect(() => {
+    if (fetchedEthRate.current) return;
+    fetchedEthRate.current = true;
+
+    async function fetchEthRate() {
+      try {
+        const res = await fetch(`${SERVER_URL}/api/eth-rate`);
+        if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
+        const data = await res.json();
+        setEthRateMXN(data.ethereum.mxn);
+      } catch (err) {
+        console.error("Failed to fetch ETH rate:", err);
+      }
+    }
+    fetchEthRate();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,12 +64,18 @@ function HomePage() {
           eventsData.map(async (event) => {
             const eventId = event.eventId;
             let lowestPrice = null;
+            let lowestPriceMXN = null;
 
             try {
               const tickets = await ticketFactoryContract.getTicketsByEvent(eventId);
               const unsold = tickets.filter((ticket) => !ticket.sold);
               const prices = unsold.map((ticket) => parseFloat(ethers.utils.formatEther(ticket.price)));
-              lowestPrice = prices.length > 0 ? Math.min(...prices) : null;
+              if (prices.length > 0) {
+                lowestPrice = Math.min(...prices);
+                if (ethRateMXN) {
+                  lowestPriceMXN = (lowestPrice * ethRateMXN).toFixed(2);
+                }
+              }
             } catch (err) {
               console.warn(`Couldn't load tickets for event ${eventId}:`, err);
             }
@@ -57,6 +84,7 @@ function HomePage() {
               ...event,
               eventId,
               lowestPrice,
+              lowestPriceMXN,
             };
           })
         );
@@ -68,19 +96,11 @@ function HomePage() {
     };
 
     fetchData();
-  }, [provider, signer, account]);
-
-  const exampleEvents = [
-    { eventId: { toNumber: () => 9991 }, title: "Festival Beats", date: Date.now() / 1000, lowestPrice: 0.2 },
-    { eventId: { toNumber: () => 9992 }, title: "Summer Night Live", date: Date.now() / 1000, lowestPrice: 0.15 },
-    { eventId: { toNumber: () => 9993 }, title: "Electric Dreams", date: Date.now() / 1000, lowestPrice: 0.1 },
-  ];
-
-  const allEvents = events.length ? events : exampleEvents;
+  }, [provider, signer, account, ethRateMXN]);
 
   const settings = {
     dots: false,
-    infinite: true,
+    infinite: events.length > 3,
     speed: 700,
     slidesToShow: 3,
     slidesToScroll: 1,
@@ -127,76 +147,64 @@ function HomePage() {
         </div>
       </section>
 
-      {/* CARRUSEL */}
-      <section className="py-20 w-full max-w-7xl mx-auto px-4">
-        <h2 className="text-3xl md:text-4xl font-bold mb-10 text-center text-white">
-          Próximos Eventos
-        </h2>
+      {/* CAROUSEL */}
+      {events.length > 0 && (
+        <section className="py-20 w-full max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl md:text-4xl font-bold mb-10 text-center text-white">
+            Próximos Eventos
+          </h2>
 
-        <Slider {...settings}>
-          {allEvents.map((event, index) => {
-            const isExample = event.eventId.toNumber() >= 9990;
-            const eventDate = new Date(event.date * 1000);
-            const day = eventDate.getDate().toString().padStart(2, '0');
-            const month = eventDate.toLocaleString('default', { month: 'short' });
-            const year = eventDate.getFullYear();
+          <Slider {...settings}>
+            {events.map((event, index) => {
+              const eventDate = new Date(event.date * 1000);
+              const day = eventDate.getDate().toString().padStart(2, "0");
+              const month = eventDate.toLocaleString("default", { month: "short" });
+              const year = eventDate.getFullYear();
 
-            return (
-              <div key={`${event.eventId.toNumber()}_${index}`} className="p-3">
-                <div className="bg-neutral-900 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition relative">
-
-                  {/* Fecha tipo badge */}
-                  <div className="absolute top-3 left-3 bg-black/80 text-white px-2 py-1 rounded-md text-center z-10">
-                    <p className="text-sm leading-none font-semibold">{day}</p>
-                    <p className="text-[10px] uppercase">{month}</p>
-                    <p className="text-[9px] text-gray-400">{year}</p>
-                  </div>
-
-                  {/* Imagen */}
-                  <div className="h-56 overflow-hidden">
-                    <img
-                      src={event.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
-                      alt={event.title}
-                      className="w-full h-full object-cover hover:scale-105 transition duration-300"
-                    />
-                  </div>
-
-                  {/* Info del evento */}
-                  <div className="p-4">
-                    <h3 className="text-xl font-semibold mb-2">{event.title}</h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 12.414a1 1 0 00-1.414 0L6.343 18.343a8 8 0 1111.314-1.686z" />
-                      </svg>
-                      <span>{event.place || "Lugar no especificado"}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.105 0-2 .895-2 2s.895 2 2 2 2-.895 2-2-.895-2-2-2zm0 10c-2.21 0-4-1.79-4-4H6a6 6 0 0012 0h-2c0 2.21-1.79 4-4 4z" />
-                      </svg>
-                      <span>
-                        {event.lowestPrice !== null ? `Desde ${event.lowestPrice} ETH` : "Boletos no disponibles"}
-                      </span>
+              return (
+                <div key={`${event.eventId.toNumber()}_${index}`} className="p-3">
+                  <div className="bg-neutral-900 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition relative">
+                    <div className="absolute top-3 left-3 bg-black/80 text-white px-2 py-1 rounded-md text-center z-10">
+                      <p className="text-sm leading-none font-semibold">{day}</p>
+                      <p className="text-[10px] uppercase">{month}</p>
+                      <p className="text-[9px] text-gray-400">{year}</p>
                     </div>
 
-                    {/* Botón */}
-                    <Link
-                      to={isExample ? "#" : `/event/${event.eventId.toNumber()}`}
-                      className={`inline-block text-sm font-medium px-4 py-2 rounded-full transition duration-300 ${isExample
-                        ? "bg-gray-600 text-gray-300 cursor-not-allowed"
-                        : "bg-violet-500 hover:bg-violet-600 text-black"
-                        }`}
-                    >
-                      {isExample ? "No disponible" : "Comprar Boleto"}
-                    </Link>
+                    <div className="h-56 overflow-hidden">
+                      <img
+                        src={event.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"}
+                        alt={event.title}
+                        className="w-full h-full object-cover hover:scale-105 transition duration-300"
+                      />
+                    </div>
+
+                    <div className="p-4">
+                      <h3 className="text-xl font-semibold mb-2">{event.title}</h3>
+                      <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
+                        <span>{event.place || "Lugar no especificado"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
+                        <span>
+                          {event.lowestPrice !== null
+                            ? `Desde ${event.lowestPrice.toFixed(5)} ETH${event.lowestPriceMXN ? ` (≈ $${event.lowestPriceMXN} MXN)` : ""}`
+                            : "Boletos no disponibles"}
+                        </span>
+                      </div>
+
+                      <Link
+                        to={`/event/${event.eventId.toNumber()}`}
+                        className="inline-block text-sm font-medium px-4 py-2 rounded-full bg-violet-500 hover:bg-violet-600 text-black transition duration-300"
+                      >
+                        Comprar Boleto
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </Slider>
-      </section>
-
+              );
+            })}
+          </Slider>
+        </section>
+      )}
       {/* GRID DE EVENTOS */}
       <section className="w-full max-w-7xl mx-auto px-4 pt-10">
         <div className="mb-6 flex flex-row md:flex-row gap-3 items-center">
@@ -218,51 +226,57 @@ function HomePage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-6">
-          {allEvents
-            .filter((event) => event.title.toLowerCase().includes(searchQuery.toLowerCase()))
-            .filter((event) => selectedPlace ? event.place === selectedPlace : true)
-            .map((event, index) => {
-              const eventDate = new Date(event.date * 1000);
-              const day = eventDate.getDate().toString().padStart(2, "0");
-              const month = eventDate.toLocaleString("default", { month: "short" });
-              const year = eventDate.getFullYear();
+        {events.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-6">
+            {events
+              .filter((event) => event.title.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter((event) => (selectedPlace ? event.place === selectedPlace : true))
+              .map((event, index) => {
+                const eventDate = new Date(event.date * 1000);
+                const day = eventDate.getDate().toString().padStart(2, "0");
+                const month = eventDate.toLocaleString("default", { month: "short" });
+                const year = eventDate.getFullYear();
 
-              return (
-                <Link
-                  to={`/event/${event.eventId.toNumber()}`}
-                  key={`${event.eventId.toNumber()}_${index}_list`}
-                  className="flex flex-row bg-black rounded-xl overflow-hidden group shadow-md hover:shadow-lg transition-shadow"
-                >
-                  <img
-                    src={event.imageUrl || "https://via.placeholder.com/208x128?text=No+Image"}
-                    alt={event.title}
-                    className="w-52 h-32 object-cover rounded-xl"
-                  />
+                return (
+                  <Link
+                    to={`/event/${event.eventId.toNumber()}`}
+                    key={`${event.eventId.toNumber()}_${index}_list`}
+                    className="flex flex-row bg-black rounded-xl overflow-hidden group shadow-md hover:shadow-lg transition-shadow"
+                  >
+                    <img
+                      src={event.imageUrl || "https://via.placeholder.com/208x128?text=No+Image"}
+                      alt={event.title}
+                      className="w-52 h-32 object-cover rounded-xl"
+                    />
 
-                  <div className="p-4 flex flex-col justify-between text-white w-full">
-                    <div>
-                      <h3 className="text-lg md:text-xl font-bold group-hover:text-violet-400 transition">
-                        {event.title}
-                      </h3>
-                      <p className="text-sm text-gray-400">
-                        <span className="text-gray-500 font-medium">Lugar:</span> {event.place || "No especificado"}
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        <span className="text-gray-500 font-medium">Fecha:</span> {`${day} ${month} ${year}`}
-                      </p>
-                      <p className="text-sm text-gray-500 font-semibold">
-                        {event.lowestPrice !== null ? `Desde ${event.lowestPrice} ETH` : "Boletos no disponibles"}
-                      </p>
+                    <div className="p-4 flex flex-col justify-between text-white w-full">
+                      <div>
+                        <h3 className="text-lg md:text-xl font-bold group-hover:text-violet-400 transition">
+                          {event.title}
+                        </h3>
+                        <p className="text-sm text-gray-400">
+                          <span className="text-gray-500 font-medium">Lugar:</span> {event.place || "No especificado"}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          <span className="text-gray-500 font-medium">Fecha:</span> {`${day} ${month} ${year}`}
+                        </p>
+                        <p className="text-sm text-gray-500 font-semibold">
+                          {event.lowestPrice !== null
+                            ? `Desde ${event.lowestPrice.toFixed(5)} ETH${event.lowestPriceMXN ? ` (≈ $${event.lowestPriceMXN} MXN)` : ""}`
+                            : "Boletos no disponibles"}
+                        </p>
+                      </div>
+                      <span className="mt-2 text-sm text-violet-400 font-medium group-hover:underline">
+                        Adquirir boletos
+                      </span>
                     </div>
-                    <span className="mt-2 text-sm text-violet-400 font-medium group-hover:underline">
-                      Adquirir boletos
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-        </div>
+                  </Link>
+                );
+              })}
+          </div>
+        ) : (
+          <p className="text-center text-gray-400 text-lg">No events available</p>
+        )}
       </section>
     </main>
   );

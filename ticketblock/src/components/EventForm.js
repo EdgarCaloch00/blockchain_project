@@ -4,6 +4,8 @@ import { FiCalendar, FiClock } from "react-icons/fi";
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
+const SERVER_URL = process.env.REACT_APP_SERVER_URL;
+console.log("Server URL:", SERVER_URL);
 
 
 
@@ -26,6 +28,14 @@ const LOCATIONS = [
     quantities: { vip: 5, generalA: 10, generalB: 15 },
     seatsPerRow: { vip: 5, generalA: 5, generalB: 5 } // ✅ fixed from original
   }]
+
+const CATEGORIES = [
+  "Concierto de Música",
+  "Evento de Teatro",
+  "Exposición de Arte",
+  "Evento Deportivo",
+  "Show de Comedia"
+];
 
 // Dynamic seat map generator:
 const generateDynamicSeatMap = (seatQuantities, seatsPerRowConfig) => {
@@ -126,7 +136,7 @@ function EventForm() {
 
     async function fetchEthRate() {
       try {
-        const res = await fetch('http://localhost:5000/api/eth-rate');
+        const res = await fetch(`${SERVER_URL}/api/eth-rate`);
         if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
         const data = await res.json();
         setEthRate(data.ethereum.mxn);
@@ -227,9 +237,8 @@ function EventForm() {
           reader.readAsDataURL(image);
         });
 
-
         // Upload to backend
-        const uploadResponse = await fetch('http://localhost:5000/api/upload-image', {
+        const uploadResponse = await fetch(`${SERVER_URL}/api/upload-image`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageBase64 })
@@ -246,7 +255,7 @@ function EventForm() {
         category,
         location,
         Math.floor(eventDate.getTime() / 1000),
-        imageUrl // Pass image URL here
+        imageUrl
       );
 
       // 3️⃣ Get new event ID
@@ -487,6 +496,23 @@ function EventForm() {
           {/* Right Column */}
           <div className="space-y-6">
             <div>
+              <label htmlFor="category" className="block text-lg font-medium text-gray-300 mb-2">
+                Categoría del Evento
+              </label>
+              <select
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white border border-neutral-800 appearance-none relative z-0"
+              >
+                <option value="">Seleccionar Categoría</option>
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-lg font-medium text-gray-300 mb-2">
                 Capacidad Total
               </label>
@@ -545,16 +571,18 @@ function EventForm() {
 
             {/* Imagen */}
             <div>
-              <label htmlFor="image" className="block text-lg font-medium text-gray-300 mb-1">
-                Imagen del Evento
+              <label
+                htmlFor="image"
+                className="inline-block px-4 py-2 bg-violet-500 hover:bg-violet-600 transition text-black font-semibold rounded-full cursor-pointer text-sm"
+              >
+                {image ? "Cambiar Imagen" : "Seleccionar Imagen"}
               </label>
               <input
                 type="file"
                 id="image"
                 accept="image/*"
                 onChange={handleImageChange}
-                required
-                className="w-full text-gray-300"
+                className="hidden"
               />
               {imagePreview && (
                 <img src={imagePreview} alt="Vista previa" className="mt-4 rounded-lg w-full h-auto object-cover" />
