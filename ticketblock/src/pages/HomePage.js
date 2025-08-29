@@ -27,7 +27,7 @@ function HomePage() {
 
     async function fetchEthRate() {
       try {
-        const res = await fetch(`${SERVER_URL}/api/eth-rate`);
+        const res = await fetch(`/api/eth-rate`);
         if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
         const data = await res.json();
         setEthRateMXN(data.ethereum.mxn);

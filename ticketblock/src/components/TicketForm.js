@@ -6,8 +6,6 @@ import QRCode from 'qrcode';
 const ethers = require("ethers");
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
 const EventTicketNFTABI = require('../contractsABI/EventTicketNFT.json');
-const SERVER_URL = process.env.REACT_APP_SERVER_URL;
-console.log("Server URL:", SERVER_URL);
 
 function TicketForm({ eventDetail, ticket, onSubmit }) {
   const { provider, signer, account } = useContext(Web3Context);
@@ -27,7 +25,7 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
 
     async function fetchEthRate() {
       try {
-        const res = await fetch(`${SERVER_URL}/api/eth-rate`);
+        const res = await fetch(`/api/eth-rate`);
         if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
         const data = await res.json();
         setEthRateMXN(data.ethereum.mxn);
@@ -99,7 +97,7 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
 
       const qrDataUrl = await QRCode.toDataURL(JSON.stringify(payload));
 
-      const uploadResponse = await fetch(`${SERVER_URL}/api/upload-image`, {
+      const uploadResponse = await fetch(`/api/upload-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: qrDataUrl })
@@ -121,7 +119,7 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
         ]
       };
 
-      const metaResponse = await fetch(`${SERVER_URL}/api/metadata`, {
+      const metaResponse = await fetch(`/api/metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(metadata)
@@ -137,21 +135,29 @@ function TicketForm({ eventDetail, ticket, onSubmit }) {
       const mintedTokenId = receipt.events[0].args.tokenId.toNumber();
       console.log("Minted NFT tokenId:", mintedTokenId);
 
-      // 3️⃣ Buy ticket using canonical ticketId
       let priceInWei;
+
       if (typeof ticket.price === "string") {
-        priceInWei = ethers.utils.parseEther(ticket.price); // ETH string → BigNumber wei
+        priceInWei = ethers.utils.parseEther(ticket.price); // ETH string → BigNumber
+      } else if (ticket.price._isBigNumber) {
+        priceInWei = ticket.price; // already BigNumber
+      } else if (ticket.price.value && ticket.price.value.hex) {
+        // <- this matches your case
+        priceInWei = ethers.BigNumber.from(ticket.price.value.hex);
       } else {
-        priceInWei = ticket.price; // already BigNumber in wei
+        throw new Error("Unexpected ticket.price format: " + JSON.stringify(ticket.price));
       }
-      console.log("Price in wei for purchase:", priceInWei.toString());
 
-      const buyTx = await ticketFactoryContract.buyTicket(eventId, ticketId, { value: priceInWei });
-      await buyTx.wait();
+      console.log("Price in wei for purchase:", priceInWei.toString())
 
-      // 4️⃣ Link NFT tokenId to ticketId in the contract
-      const linkTx = await ticketFactoryContract.setTicketTokenId(eventId, ticketId, mintedTokenId);
-      await linkTx.wait();
+      const tx = await ticketFactoryContract.buyTicketAndSetTokenId(
+        eventId,       // uint256
+        ticketId,      // uint256
+        mintedTokenId, // uint256 tokenId from NFT mint
+        { value: priceInWei } // BigNumber in wei
+      );
+      await tx.wait(); await tx.wait();
+
       setIsBought(true); // ✅ Marca el boleto como comprado
       alert("Ticket comprado exitosamente!");
     } catch (error) {

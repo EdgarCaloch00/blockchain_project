@@ -120,7 +120,7 @@ function EventDetailsPage() {
         <p><span className="font-semibold text-gray-200">Categoría:</span> {eventDetail.category}</p>
         <p><span className="font-semibold text-gray-200">Fecha:</span> {eventDetail.date}</p>
         <p><span className="font-semibold text-gray-200">Lugar:</span> {eventDetail.place}</p>
-        <p><span className="font-semibold text-gray-200">Entradas vendidas:</span> {eventDetail.ticketsSold}</p>
+        <p><span className="font-semibold text-gray-200">Entradas disponibles:</span> {tickets.length}</p>
         <p className="sm:col-span-2">
           <span className="font-semibold text-gray-200">Estatus:</span>{" "}
           <span className={eventDetail.isActive ? "text-indigo-400 font-medium" : "text-gray-100 font-medium"}>

@@ -161,7 +161,7 @@ const ScannerPage = () => {
 
     } catch (err) {
       console.error(err);
-      alert("Error validating ticket");
+      alert("Only event creators can validate");
     }
   };
 
@@ -188,6 +188,7 @@ const ScannerPage = () => {
               <p><span className="text-violet-400 font-semibold">Event ID:</span> {ticketInfo?.eventId || '-'}</p>
               <p><span className="text-green-400 font-semibold">Ticket ID:</span> {ticketInfo?.ticketId || '-'}</p>
               <p><span className="text-yellow-400 font-semibold">Tipo:</span> {ticketInfo?.ticketType || '-'}</p>
+              <p><span className="text-blue-400 font-semibold">Vendido:</span> {ticketInfo ? (ticketInfo.sold ? 'Sí' : 'No') : '-'}</p>
               <p><span className="text-red-400 font-semibold">Escaneado:</span> {ticketInfo ? (ticketInfo.scanned ? 'Sí' : 'No') : '-'}</p>
             </div>
 

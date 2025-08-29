@@ -10,6 +10,7 @@
     "cors": "^2.8.5",
     "ethers": "^5.7.2",
     "express": "^5.1.0",
+    "html5-qrcode": "^2.3.8",
     "node-fetch": "^3.3.2",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
@@ -38,6 +39,7 @@
       "react-app/jest"
     ]
   },
+  "proxy": "http://localhost:5000",
   "browserslist": {
     "production": [
       ">0.2%",

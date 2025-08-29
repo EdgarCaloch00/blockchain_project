@@ -4,30 +4,12 @@ import { FiCalendar, FiClock } from "react-icons/fi";
 const ethers = require("ethers");
 const EventsABI = require('../contractsABI/Events.json');
 const TicketFactoryABI = require('../contractsABI/TicketFactory.json');
-const SERVER_URL = process.env.REACT_APP_SERVER_URL;
-console.log("Server URL:", SERVER_URL);
-
-
 
 const LOCATIONS = [
-  {
-    name: "Estadio GNP",
-    totalSeats: 30,
-    quantities: { vip: 10, generalA: 10, generalB: 10 },
-    seatsPerRow: { vip: 10, generalA: 10, generalB: 10 } // ✅ valid
-  },
-  {
-    name: "Arena CDMX",
-    totalSeats: 40,
-    quantities: { vip: 10, generalA: 10, generalB: 20 },
-    seatsPerRow: { vip: 5, generalA: 5, generalB: 10 } // ✅ valid
-  },
-  {
-    name: "Foro Sol",
-    totalSeats: 30,
-    quantities: { vip: 5, generalA: 10, generalB: 15 },
-    seatsPerRow: { vip: 5, generalA: 5, generalB: 5 } // ✅ fixed from original
-  }]
+  { name: "Estadio GNP", totalSeats: 30, quantities: { vip: 10, generalA: 10, generalB: 10 }, seatsPerRow: { vip: 10, generalA: 10, generalB: 10 } },
+  { name: "Arena CDMX", totalSeats: 40, quantities: { vip: 10, generalA: 10, generalB: 20 }, seatsPerRow: { vip: 5, generalA: 5, generalB: 10 } },
+  { name: "Foro Sol", totalSeats: 30, quantities: { vip: 5, generalA: 10, generalB: 15 }, seatsPerRow: { vip: 5, generalA: 5, generalB: 5 } }
+];
 
 const CATEGORIES = [
   "Concierto de Música",
@@ -37,11 +19,9 @@ const CATEGORIES = [
   "Show de Comedia"
 ];
 
-// Dynamic seat map generator:
 const generateDynamicSeatMap = (seatQuantities, seatsPerRowConfig) => {
   const zones = ["vip", "generalA", "generalB"];
   const zoneLabels = { vip: "VIP", generalA: "General A", generalB: "General B" };
-
   const seatMap = [];
 
   zones.forEach(zone => {
@@ -52,16 +32,10 @@ const generateDynamicSeatMap = (seatQuantities, seatsPerRowConfig) => {
     const rowsCount = Math.ceil(quantity / seatsPerRow);
 
     for (let row = 1; row <= rowsCount; row++) {
-      const rowLabel = row.toString(); // Numeric row label
-
+      const rowLabel = row.toString();
       const seatsInThisRow = Math.min(seatsPerRow, quantity - (row - 1) * seatsPerRow);
       for (let seatNumber = 1; seatNumber <= seatsInThisRow; seatNumber++) {
-        seatMap.push({
-          zone: zoneLabels[zone],
-          row: rowLabel,
-          column: seatNumber,
-          selected: true,
-        });
+        seatMap.push({ zone: zoneLabels[zone], row: rowLabel, column: seatNumber, selected: true });
       }
     }
   });
@@ -79,20 +53,14 @@ function EventForm() {
   useEffect(() => {
     const fetchData = async () => {
       if (!provider || !signer || !window.ethereum) return;
-
       try {
         const networkId = 1337;
-
         const eventContractAddress = EventsABI.networks[networkId].address;
-        const eventsContractABI = EventsABI.abi;
-        // Create contract connected to signer directly
-        const connectedEventsContract = new ethers.Contract(eventContractAddress, eventsContractABI, signer);
+        const connectedEventsContract = new ethers.Contract(eventContractAddress, EventsABI.abi, signer);
 
         const ticketFactoryContractAddress = TicketFactoryABI.networks[networkId].address;
-        const ticketFactoryContractABI = TicketFactoryABI.abi;
-        const connectedTicketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, ticketFactoryContractABI, signer);
+        const connectedTicketFactoryContract = new ethers.Contract(ticketFactoryContractAddress, TicketFactoryABI.abi, signer);
 
-        // Store contracts connected to signer so you can call write methods directly
         setEventsContract(connectedEventsContract);
         setTicketFactoryContract(connectedTicketFactoryContract);
 
@@ -100,7 +68,6 @@ function EventForm() {
         console.error('Error fetching contracts:', error);
       }
     };
-
     fetchData();
   }, [provider, signer]);
 
@@ -120,15 +87,11 @@ function EventForm() {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [seatMap, setSeatMap] = useState([]);
 
-  useEffect(() => {
-    setToday(new Date().toISOString().split('T')[0]);
-  }, []);
+  useEffect(() => setToday(new Date().toISOString().split('T')[0]), []);
 
   const [ethRate, setEthRate] = useState(null);
-  // Ref to ensure ETH rate fetch only once per mount/session
   const fetchedEthRate = useRef(false);
   useEffect(() => {
     if (fetchedEthRate.current) return;
@@ -136,7 +99,7 @@ function EventForm() {
 
     async function fetchEthRate() {
       try {
-        const res = await fetch(`${SERVER_URL}/api/eth-rate`);
+        const res = await fetch(`/api/eth-rate`);
         if (!res.ok) throw new Error(`Failed to fetch ETH rate: ${res.status}`);
         const data = await res.json();
         setEthRate(data.ethereum.mxn);
@@ -176,10 +139,7 @@ function EventForm() {
 
   const handlePriceChange = (e) => {
     const { name, value } = e.target;
-    setPrices({
-      ...prices,
-      [name]: value >= 0 ? value : 0
-    });
+    setPrices({ ...prices, [name]: value >= 0 ? value : 0 });
   };
 
   const handleImageChange = (e) => {
@@ -194,9 +154,7 @@ function EventForm() {
     setHighlightedField('');
   };
 
-  const handleSubmit = () => {
-    setShowConfirmation(true);
-  };
+  const handleSubmit = () => setShowConfirmation(true);
 
   const confirmSubmit = async () => {
     if (!eventsContract || isSubmitting) return;
@@ -229,16 +187,14 @@ function EventForm() {
       // 1️⃣ Upload image if available
       let imageUrl = "";
       if (image) {
-        // Convert image file to Base64
         const reader = new FileReader();
         const imageBase64 = await new Promise((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result); // full Data URL
+          reader.onloadend = () => resolve(reader.result);
           reader.onerror = reject;
           reader.readAsDataURL(image);
         });
 
-        // Upload to backend
-        const uploadResponse = await fetch(`${SERVER_URL}/api/upload-image`, {
+        const uploadResponse = await fetch(`/api/upload-image`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageBase64 })
@@ -248,7 +204,7 @@ function EventForm() {
         console.log("Uploaded image URL:", imageUrl);
       }
 
-      // 2️⃣ Create the event on blockchain with image URL
+      // 2️⃣ Create the event on blockchain
       await eventsContract.createEvent(
         title,
         description,
@@ -262,10 +218,16 @@ function EventForm() {
       const totalEvents = await eventsContract.getEventsCount();
       const newEventId = totalEvents.toNumber();
 
-      // 4️⃣ Generate tickets
-      const vipPriceEth = (prices.vip / ethRate).toString();
-      const generalAPriceEth = (prices.generalA / ethRate).toString();
-      const generalBPriceEth = (prices.generalB / ethRate).toString();
+      // 4️⃣ Generate tickets with fixed price conversion
+      const formatPriceForEther = (priceMXN) => {
+        if (!priceMXN || !ethRate) return "0";
+        const ethValue = parseFloat(priceMXN) / ethRate;
+        return ethValue.toFixed(18); // Limit fractional part to 18 decimals
+      };
+
+      const vipPriceEth = formatPriceForEther(prices.vip);
+      const generalAPriceEth = formatPriceForEther(prices.generalA);
+      const generalBPriceEth = formatPriceForEther(prices.generalB);
 
       await ticketFactoryContract.generateEventTickets(
         newEventId,
@@ -292,68 +254,31 @@ function EventForm() {
     }
   };
 
-
   function SeatGrid({ seats }) {
-    // Determine max columns needed per zone to help center grids individually
     const zones = ["VIP", "General A", "General B"];
-
     return (
       <div className="space-y-4 text-white">
         {zones.map((zone) => {
           const zoneSeats = seats.filter((s) => s.zone === zone);
           if (zoneSeats.length === 0) return null;
-
-          // Seats per row for this zone (dynamic per your seat data)
           const columnsCount = Math.max(...zoneSeats.map((s) => s.column));
           const zoneRows = Array.from(new Set(zoneSeats.map((s) => s.row))).sort();
-
           return (
             <div key={zone} className="border border-gray-600 rounded-lg flex flex-col items-center">
               <h4 className="text-center font-bold mb-2">{zone}</h4>
-
-              {/* Column headers */}
-              <div
-                className="grid gap-1 mb-2"
-                style={{ gridTemplateColumns: `auto repeat(${columnsCount}, auto)` }}
-              >
+              <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: `auto repeat(${columnsCount}, auto)` }}>
                 <div className="mx-1"></div>
                 {[...Array(columnsCount)].map((_, i) => (
-                  <button
-                    disabled
-                    key={i}
-                    className="w-6 h-7 text-center text-xs text-gray-300"
-                  >
-                    {i + 1}
-                  </button>
+                  <button disabled key={i} className="w-6 h-7 text-center text-xs text-gray-300">{i + 1}</button>
                 ))}
               </div>
-
-              {/* Rows */}
               {zoneRows.map((row) => (
-                <div
-                  key={row}
-                  className="grid gap-1 items-center mb-2"
-                  style={{ gridTemplateColumns: `auto repeat(${columnsCount}, auto)` }}
-                >
+                <div key={row} className="grid gap-1 items-center mb-2" style={{ gridTemplateColumns: `auto repeat(${columnsCount}, auto)` }}>
                   <div className="text-xs text-center font-semibold">{row}</div>
                   {Array.from({ length: columnsCount }, (_, i) => {
-                    const seat = zoneSeats.find(
-                      (s) => s.row === row && s.column === i + 1
-                    );
+                    const seat = zoneSeats.find((s) => s.row === row && s.column === i + 1);
                     return seat ? (
-                      <button
-                        key={`${seat.row}${seat.column}`}
-                        type="button"
-                        className={`w-6 h-6 text-xs rounded cursor-default ${seat.zone === "VIP"
-                          ? "bg-purple-600"
-                          : seat.zone === "General A"
-                            ? "bg-orange-500"
-                            : "bg-red-600"
-                          }`}
-                        disabled
-                      >
-                        {seat.column}
-                      </button>
+                      <button key={`${seat.row}${seat.column}`} type="button" className={`w-6 h-6 text-xs rounded cursor-default ${seat.zone === "VIP" ? "bg-purple-600" : seat.zone === "General A" ? "bg-orange-500" : "bg-red-600"}`} disabled>{seat.column}</button>
                     ) : (
                       <div key={`empty-${row}-${i + 1}`} className="w-6 h-6" />
                     );
@@ -366,7 +291,6 @@ function EventForm() {
       </div>
     );
   }
-
 
   return (
     <div

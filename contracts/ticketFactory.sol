@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^ 0.8.17;
 
 import "./EventTicketNFT.sol";
 
@@ -93,7 +93,7 @@ contract TicketFactory {
         bool resellable,
         uint256 startingRow,
         uint256 seatsPerRow
-    ) internal returns (uint256 lastRowUsed) {
+    ) internal returns(uint256 lastRowUsed) {
         if (quantity == 0 || seatsPerRow == 0) return startingRow - 1;
 
         EventTickets storage eventTickets = ticketsPerEvent[eventId];
@@ -128,38 +128,36 @@ contract TicketFactory {
         lastRowUsed = currentColumn > 1 ? currentRow : currentRow - 1;
     }
 
-    // -------------------- Buy --------------------
-    function buyTicket(uint256 eventId, uint256 ticketId) external payable {
-        EventTickets storage eventTickets = ticketsPerEvent[eventId];
+    function buyTicketAndSetTokenId(
+        uint256 eventId,
+        uint256 ticketId,
+        uint256 tokenId
+    ) external payable {
+    EventTickets storage eventTickets = ticketsPerEvent[eventId];
         require(ticketId < eventTickets.items.length, "Invalid ticketId");
 
-        Item storage ticket = eventTickets.items[ticketId];
+    Item storage ticket = eventTickets.items[ticketId];
         require(!ticket.sold, "Ticket already sold");
         require(msg.value == ticket.price, "Incorrect payment amount");
 
+        // Step 1: Mark sold
         ticket.sold = true;
 
+        // Step 2: Set tokenId
+        require(ticket.tokenId == 0, "TokenId already set");
+        ticket.tokenId = tokenId;
+        tokenIdToTicketId[tokenId] = ticketId;
+        tokenIdToEventId[tokenId] = eventId;
+
+        // Step 3: Track event ownership
         if (!hasEvent[msg.sender][eventId]) {
             ownedEventIds[msg.sender].push(eventId);
             hasEvent[msg.sender][eventId] = true;
         }
 
-        emit TicketPurchased(msg.sender, eventId, ticketId, ticket.price, ticket.tokenId);
+    emit TicketPurchased(msg.sender, eventId, ticketId, ticket.price, tokenId);
     }
 
-    // -------------------- Set NFT tokenId for purchased ticket --------------------
-    function setTicketTokenId(uint256 eventId, uint256 ticketId, uint256 tokenId) external {
-        EventTickets storage eventTickets = ticketsPerEvent[eventId];
-        require(ticketId < eventTickets.items.length, "Invalid ticketId");
-
-        Item storage ticket = eventTickets.items[ticketId];
-        require(ticket.sold, "Ticket not sold yet");
-        require(ticket.tokenId == 0, "TokenId already set");
-
-        ticket.tokenId = tokenId;
-        tokenIdToTicketId[tokenId] = ticketId;
-        tokenIdToEventId[tokenId] = eventId;
-    }
 
     // -------------------- Scan --------------------
     function scanTicket(uint256 eventId, uint256 ticketId) external onlyEventCreator(eventId) {
@@ -195,7 +193,7 @@ contract TicketFactory {
     }
 
     // -------------------- Getters --------------------
-    function getTicketsByEvent(uint256 eventId) external view returns (Item[] memory) {
+    function getTicketsByEvent(uint256 eventId) external view returns(Item[] memory) {
         EventTickets storage eventTickets = ticketsPerEvent[eventId];
         uint256 total = eventTickets.items.length;
 
@@ -216,11 +214,11 @@ contract TicketFactory {
         return unsoldTickets;
     }
 
-    function getOwnedEventIds(address user) external view returns (uint256[] memory) {
+    function getOwnedEventIds(address user) external view returns(uint256[] memory) {
         return ownedEventIds[user];
     }
 
-    function getTicketById(uint256 eventId, uint256 ticketId) external view returns (Item memory) {
+    function getTicketById(uint256 eventId, uint256 ticketId) external view returns(Item memory) {
         require(ticketId < ticketsPerEvent[eventId].items.length, "Invalid ticketId");
         return ticketsPerEvent[eventId].items[ticketId];
     }
